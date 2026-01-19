@@ -12,10 +12,6 @@
 
 ### 步骤 1：部署后端到 Railway（约 5 分钟）
 
-**⚠️ 如果网页端一直 Loading，请使用 [Railway CLI 方法](#使用-railway-cli-部署推荐)**
-
-#### 方法 A：使用网页端（如果正常）
-
 1. **访问 Railway**：
    - 打开 https://railway.app
    - 使用 GitHub 登录
@@ -23,41 +19,17 @@
 2. **创建新项目**：
    - 点击 "New Project"
    - 选择 "Deploy from GitHub repo"
-   - 授权 Railway 访问 GitHub（如果提示）
+   - 授权 Railway 访问 GitHub
    - 选择仓库：`xiaomumaozi88/assets-management`
-   - ⚠️ 如果一直 Loading，使用下面的 CLI 方法
 
-#### 方法 B：使用 Railway CLI 部署（推荐，更稳定）⚡
-
-如果网页端一直 Loading，使用命令行部署：
-
-```bash
-# 1. 安装 Railway CLI
-npm i -g @railway/cli
-
-# 2. 登录（会打开浏览器）
-railway login
-
-# 3. 进入后端目录并初始化
-cd backend
-railway init
-
-# 4. 按照提示：
-#    - 选择 "Create a new project" 或 "Link to existing project"
-#    - 项目名称：assets-management-backend
-#    - 等待创建完成
-
-# 5. 在网页端配置环境变量（见下方）
-#    或使用命令：railway variables set KEY=value
-```
-
-3. **配置服务**（在 Railway 网页端）：
-   - 进入项目，点击服务
+3. **配置服务**：
+   - Railway 会自动创建服务
+   - 点击服务进入设置
    - **Settings** → 配置：
      - **Root Directory**: `backend`
      - **Start Command**: `npm run start:prod`
 
-4. **添加环境变量**（Settings → Variables 或使用 CLI）：
+4. **添加环境变量**（Settings → Variables）：
    
    ```bash
    NODE_ENV=production
