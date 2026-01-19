@@ -57,3 +57,8 @@ frontend/.env.local
 *.temp
 .cache/
 
+# 敏感文件
+公司现有描述.txt
+*.secret
+*.key
+
