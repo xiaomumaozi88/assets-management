@@ -13,10 +13,14 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 
 const queryClient = new QueryClient();
 
+// 获取 base 路径，与 vite.config.ts 保持一致
+// Vite 会自动设置 import.meta.env.BASE_URL 为 vite.config.ts 中的 base 值
+const basename = import.meta.env.BASE_URL || '/assets-management/';
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename={basename}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route
