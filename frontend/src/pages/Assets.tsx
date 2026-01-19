@@ -56,7 +56,6 @@ const Assets = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [assetFormData, setAssetFormData] = useState<Record<string, any>>({});
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
-  const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null);
   const [rowData, setRowData] = useState<Record<string, Record<string, any>>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [templateDescription, setTemplateDescription] = useState<string>('');
@@ -158,7 +157,8 @@ const Assets = () => {
 
   const loadTemplateDescription = async (templateId: string) => {
     try {
-      const template = await assetTemplatesService.getById(templateId);
+      const response = await assetTemplatesService.getById(templateId);
+      const template = response as unknown as AssetTemplate;
       if (template) {
         setTemplateDescription(template.description || '');
       }
@@ -690,7 +690,7 @@ const Assets = () => {
           }
           
           // 将选项转换为 Ant Design Select 需要的格式
-          const selectOptionsForAntd = selectOptions.map((option, idx) => {
+          const selectOptionsForAntd = selectOptions.map((option) => {
             const optValue = typeof option === 'string' ? option : option.value;
             const optLabel = typeof option === 'string' ? option : (option.label || option.value);
             return { value: optValue, label: optLabel };
@@ -758,7 +758,7 @@ const Assets = () => {
     return value || '-';
   };
 
-  const renderAssetRows = (assetsList: Asset[], level: number = 0): JSX.Element[] => {
+  const renderAssetRows = (assetsList: Asset[], level: number = 0): React.ReactElement[] => {
     return assetsList.map((asset, index) => {
       const hasChildren = asset.children && asset.children.length > 0;
       const isExpanded = expandedRows.has(asset.id);

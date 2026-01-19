@@ -6,7 +6,7 @@ import { assetTypesService } from '../services/asset-types.service';
 import { assetTemplatesService, type AssetTemplate } from '../services/asset-templates.service';
 import { assetFieldsService, type AssetField } from '../services/asset-fields.service';
 import { usersService } from '../services/users.service';
-import { businessLinesService } from '../services/business-lines.service';
+import { businessLinesService, type BusinessLine } from '../services/business-lines.service';
 import api from '../services/api';
 import './Applications.css';
 
@@ -19,7 +19,6 @@ const Applications = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [selectedApproval, setSelectedApproval] = useState<Approval | null>(null);
   const [approvalFormData, setApprovalFormData] = useState<Record<string, any>>({});
@@ -259,7 +258,7 @@ const Applications = () => {
           }
         }
       });
-      setFormData(prev => ({
+      setFormData((prev: any) => ({
         ...prev,
         application_data: initialData,
       }));
@@ -280,12 +279,11 @@ const Applications = () => {
     });
     setTemplates([]);
     setTemplateFields([]);
-    setSelectedApplication(null);
     setIsModalOpen(true);
   };
 
   const handleAssetTypeChange = (assetTypeId: string) => {
-    setFormData(prev => ({
+    setFormData((prev: any) => ({
       ...prev,
       asset_type_id: assetTypeId,
       asset_template_id: '',
@@ -299,7 +297,7 @@ const Applications = () => {
   };
 
   const handleTemplateChange = (templateId: string) => {
-    setFormData(prev => ({
+    setFormData((prev: any) => ({
       ...prev,
       asset_template_id: templateId,
       application_data: {},
@@ -380,7 +378,7 @@ const Applications = () => {
           }
           
           // 将选项转换为 Ant Design Select 需要的格式
-          const selectOptionsForAntd = selectOptions.map((option, idx) => {
+          const selectOptionsForAntd = selectOptions.map((option) => {
             const optValue = typeof option === 'string' ? option : option.value;
             const optLabel = typeof option === 'string' ? option : (option.label || option.value);
             return { value: optValue, label: optLabel };
@@ -408,7 +406,7 @@ const Applications = () => {
           );
         } else {
           // 将选项转换为 Ant Design Select 需要的格式
-          const selectOptionsForAntd = selectOptions.map((option, idx) => {
+          const selectOptionsForAntd = selectOptions.map((option) => {
             const optValue = typeof option === 'string' ? option : option.value;
             const optLabel = typeof option === 'string' ? option : (option.label || option.value);
             return { value: optValue, label: optLabel };

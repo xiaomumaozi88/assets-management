@@ -14,6 +14,7 @@ export type AssetField = {
   validation_rule?: Record<string, any>;
   options?: Record<string, any>;
   display_order: number;
+  description?: string;
 };
 
 export const assetFieldsService = {

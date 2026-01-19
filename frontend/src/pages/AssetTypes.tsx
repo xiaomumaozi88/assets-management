@@ -826,7 +826,7 @@ const AssetTypes = () => {
     }));
     
     // 更新字段映射
-    setFieldEnumMapping(prev => ({
+    setFieldEnumMapping((prev: Record<string, string>) => ({
       ...prev,
       [fieldCode]: enumIdOrType,
     }));

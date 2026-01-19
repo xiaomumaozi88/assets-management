@@ -4,6 +4,7 @@ export type Application = {
   id: string;
   applicant_id: string;
   asset_type_id: string;
+  asset_template_id?: string;
   project_id?: string;
   business_line_id?: string;
   application_data: Record<string, any>;
