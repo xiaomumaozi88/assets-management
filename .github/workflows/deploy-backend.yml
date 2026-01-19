@@ -39,23 +39,11 @@ jobs:
         run: npm run build
 
       # 部署到 Railway（推荐方案）
-      - name: 部署到 Railway
-        if: ${{ secrets.RAILWAY_TOKEN }}
-        uses: bervProject/railway-deploy@main
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID_BACKEND }}
-
-      # 可选：部署到 Vercel
-      - name: 部署到 Vercel（可选）
-        if: ${{ secrets.VERCEL_TOKEN }}
-        uses: amondnet/vercel-action@v25
-        continue-on-error: true
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_BACKEND }}
-          vercel-args: '--prod'
-          working-directory: ./backend
-          scope: ${{ secrets.VERCEL_ORG_ID }}
+      # 注意：Railway 部署需要在 Railway 项目中通过 Git 连接自动部署
+      # 或者使用 Railway CLI，这里只构建，不自动部署
+      - name: 后端构建完成
+        run: echo "后端构建完成，Railway 将通过 Git 连接自动部署"
+      
+      # Railway 通过 Git 连接自动部署，不需要手动部署步骤
+      # 如果需要在 GitHub Actions 中部署到 Railway，需要配置 Railway token
+      # 但 GitHub Actions 不支持在 if 条件中使用 secrets，所以这里注释掉
