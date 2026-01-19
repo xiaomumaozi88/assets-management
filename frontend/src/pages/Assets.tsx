@@ -56,6 +56,7 @@ const Assets = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [assetFormData, setAssetFormData] = useState<Record<string, any>>({});
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null);
   const [rowData, setRowData] = useState<Record<string, Record<string, any>>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [templateDescription, setTemplateDescription] = useState<string>('');
@@ -288,7 +289,7 @@ const Assets = () => {
     setExpandedRows(newExpanded);
   };
 
-  const handleOpenAssetModal = (asset?: Asset) => {
+  const _handleOpenAssetModal = (asset?: Asset) => {
     if (asset) {
       setEditingAsset(asset);
       setAssetFormData({

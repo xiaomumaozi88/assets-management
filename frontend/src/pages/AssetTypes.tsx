@@ -68,7 +68,7 @@ const AssetTypes = () => {
   const [enumModalOpen, setEnumModalOpen] = useState(false);
   const [editingEnum, setEditingEnum] = useState<EnumValue | null>(null);
   const [enumFormData, setEnumFormData] = useState<{ name: string; code: string; values: Array<{ value: string; label: string }>; description: string }>({ name: '', code: '', values: [], description: '' });
-  const [fieldEnumMapping, setFieldEnumMapping] = useState<Record<string, string>>({}); // field_code -> enum_id
+  const [_fieldEnumMapping, setFieldEnumMapping] = useState<Record<string, string>>({}); // field_code -> enum_id
   const [enumMatchedData, setEnumMatchedData] = useState<Record<string, Record<number, boolean>>>({}); // field_code -> { rowIndex: isMatched }
   const [defaultOwnerId, setDefaultOwnerId] = useState<string>(''); // 默认负责人ID（系统管理员）
   const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; role?: string }>>([]); // 用户列表
