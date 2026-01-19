@@ -25,10 +25,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response.data as any,
   (error) => {
+    // 401 错误：未授权（可能是 token 过期或无效）
+    // 但不要在登录页面时重定向（避免循环）
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      const basename = import.meta.env.BASE_URL || '/assets-management/';
-      window.location.href = `${basename}login`;
+      const isLoginPage = window.location.pathname.includes('/login');
+      if (!isLoginPage) {
+        localStorage.removeItem('token');
+        const basename = import.meta.env.BASE_URL || '/assets-management/';
+        window.location.href = `${basename}login`;
+      }
     }
     return Promise.reject(error);
   }
