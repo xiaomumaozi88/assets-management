@@ -18,6 +18,13 @@ import databaseConfig from '../config/database.config';
         entities: [__dirname + '/../**/*.entity{.ts,.js}'],
         synchronize: configService.get<string>('NODE_ENV') !== 'production',
         logging: configService.get<string>('NODE_ENV') === 'development',
+        // 强制使用 IPv4，避免 IPv6 连接问题
+        extra: {
+          // 使用 IPv4 地址族，避免 ENETUNREACH 错误
+          connectionLimit: 10,
+        },
+        // 使用 IPv4 DNS 解析
+        connectTimeoutMS: 10000,
       }),
     }),
   ],

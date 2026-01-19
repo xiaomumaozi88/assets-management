@@ -10,5 +10,10 @@ export default registerAs('database', () => ({
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   synchronize: process.env.NODE_ENV !== 'production',
   logging: process.env.NODE_ENV === 'development',
+  // 强制使用 IPv4，避免 IPv6 连接问题
+  extra: {
+    // 使用 IPv4 地址族
+    options: '-c address_family=ipv4',
+  },
 }));
 
