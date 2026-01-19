@@ -60,7 +60,7 @@ jobs:
 
       # 可选：同时部署到 Vercel
       - name: 部署到 Vercel（可选）
-        if: ${{ secrets.VERCEL_TOKEN }}
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
         uses: amondnet/vercel-action@v25
         continue-on-error: true
         with:
