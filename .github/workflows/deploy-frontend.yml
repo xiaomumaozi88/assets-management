@@ -42,6 +42,8 @@ jobs:
         env:
           # 使用 Railway 后端 URL，如果没有设置则使用默认值（需要后续手动更新）
           VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://your-backend.railway.app/api' }}
+          # 设置 GitHub Pages 基础路径
+          VITE_BASE_PATH: '/assets-management/'
         run: npm run build
 
       - name: 配置 GitHub Pages
