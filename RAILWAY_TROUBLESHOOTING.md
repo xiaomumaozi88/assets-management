@@ -1,133 +1,235 @@
-# Railway 部署故障排除
+# Railway 崩溃问题排查指南
 
-## 问题：选择 GitHub repo 后一直 Loading
+## 🔍 查看日志（最重要！）
 
-### 解决方案 1：检查 GitHub 授权（最常见）
+**第一步**：在 Railway 页面查看错误日志
 
-1. **检查 Railway 是否有 GitHub 权限**：
-   - 在 Railway Dashboard，点击右上角头像
-   - 进入 **Settings** → **Connected Accounts**
-   - 检查 GitHub 是否已连接
-   - 如果没有，点击 **Connect GitHub** 并授权
+1. 点击 **assets-management** 服务
+2. 点击 **Logs** 标签页（或 **Observability** → **Logs**）
+3. 查看最新的错误信息
 
-2. **重新授权**：
-   - 如果已连接，尝试 **Disconnect** 然后重新连接
-   - 授权时需要确保选择了正确的 GitHub 账户
-   - 确保授权了 `railway` 应用访问仓库的权限
-
-### 解决方案 2：使用 Empty Project（推荐替代方法）
-
-如果 GitHub 连接有问题，可以手动部署：
-
-1. **创建空项目**：
-   - 点击 **New Project**
-   - 选择 **Empty Project**（不要选 GitHub repo）
-
-2. **手动添加服务**：
-   - 点击 **+ New** → **GitHub Repo**
-   - 选择你的仓库：`xiaomumaozi88/assets-management`
-   - 等待加载
-
-3. **如果还是加载**，使用 **Empty Project** + **GitHub CLI**：
-   - 创建 Empty Project
-   - 在本地使用 Railway CLI 连接
-
-### 解决方案 3：使用 Railway CLI 部署（最可靠）
-
-如果网页端一直有问题，使用命令行部署：
-
-```bash
-# 1. 安装 Railway CLI
-npm i -g @railway/cli
-
-# 2. 登录
-railway login
-
-# 3. 在项目根目录初始化
-cd /Users/qiujian/Documents/CodeProjects/Touka/assets-fe
-railway init
-
-# 4. 创建新项目（会在浏览器中打开）
-railway up
-
-# 5. 或者直接连接到现有项目
-railway link
-```
-
-### 解决方案 4：检查仓库可见性
-
-1. **确认仓库是公开的或 Railway 有权限**：
-   - 访问：https://github.com/xiaomumaozi88/assets-management/settings/access
-   - 如果是 Private 仓库，确保 Railway 应用有访问权限
-
-2. **临时改为 Public 测试**（如果隐私允许）：
-   - Settings → Danger Zone → Change repository visibility
-   - 改为 Public，测试部署
-   - 部署成功后再改回 Private
-
-### 解决方案 5：浏览器问题
-
-1. **清除缓存和 Cookies**：
-   - 清除 Railway 相关的 cookies
-   - 重新登录
-
-2. **尝试无痕模式**：
-   - 使用 Chrome/Edge 无痕模式
-   - 重新登录 Railway 和 GitHub
-
-3. **尝试不同浏览器**：
-   - 如果 Chrome 不行，试试 Firefox 或 Safari
-
-### 解决方案 6：检查网络和防火墙
-
-1. **检查是否能访问 GitHub API**：
-   ```bash
-   curl https://api.github.com
-   ```
-
-2. **检查 Railway 服务状态**：
-   - 访问 https://status.railway.app
-   - 确认服务正常
-
-### 解决方案 7：使用 Git Push 方式（最稳定）
-
-如果网页端一直有问题，使用 Git 推送方式：
-
-```bash
-# 1. 在 Railway 创建 Empty Project
-# 2. 获取 Railway 的 Git URL（在项目 Settings → Git 中）
-# 3. 添加 Railway 为远程仓库
-git remote add railway https://railway.app/your-project.git
-
-# 4. 推送代码
-git push railway main
-```
+常见错误类型：
+- 数据库连接失败
+- 环境变量缺失
+- 端口配置错误
+- 依赖安装失败
 
 ---
 
-## 推荐方案：使用 Railway CLI
+## 🔧 常见问题及解决方案
 
-最稳定的方式是使用 Railway CLI，避免网页端的问题：
+### 问题 1：数据库连接失败
+
+**错误信息**：`ECONNREFUSED` 或 `Connection refused`
+
+**检查**：
+1. 确认环境变量已正确设置：
+   ```
+   DB_HOST=db.omtonocmwbqkadzkzmlt.supabase.co
+   DB_PORT=5432
+   DB_USERNAME=postgres
+   DB_PASSWORD=Ll3uXrXdiiMZ0KTv
+   DB_DATABASE=postgres
+   ```
+
+2. 确认 Supabase 数据库允许外部连接（默认允许）
+
+**解决**：
+- 检查环境变量拼写是否正确
+- 确认密码中没有多余空格
+- 测试数据库连接（见下方）
+
+---
+
+### 问题 2：环境变量未设置
+
+**错误信息**：`JWT_SECRET is required` 或其他环境变量相关错误
+
+**检查**：
+在 Railway 服务 → **Variables** 标签页，确认以下变量都存在：
 
 ```bash
-# 完整步骤
+✅ NODE_ENV=production
+✅ PORT=3000
+✅ DB_HOST=db.omtonocmwbqkadzkzmlt.supabase.co
+✅ DB_PORT=5432
+✅ DB_USERNAME=postgres
+✅ DB_PASSWORD=Ll3uXrXdiiMZ0KTv
+✅ DB_DATABASE=postgres
+✅ JWT_SECRET=QumEj6dTi4IcuH4JDslEzZuljs1kv8jSkfhIVg6GErM=
+✅ JWT_EXPIRES_IN=7d
+✅ CORS_ORIGIN=https://xiaomumaozi88.github.io
+```
+
+**解决**：
+- 添加缺失的环境变量
+- 保存后会自动重新部署
+
+---
+
+### 问题 3：数据库表不存在
+
+**错误信息**：`relation "users" does not exist` 或类似的表不存在错误
+
+**原因**：
+- 生产环境下 `synchronize: false`，不会自动创建表
+- 需要先运行初始化脚本
+
+**解决**：
+1. 先部署服务（即使崩溃也要先部署）
+2. 使用 Railway CLI 运行初始化脚本：
+
+```bash
 npm i -g @railway/cli
 railway login
 cd backend
-railway init
-railway up
+railway link
+railway run npm run init:data
 ```
 
-然后按照提示在网页端配置环境变量。
+或者临时启用 synchronize（不推荐生产环境）：
+- 设置环境变量：`NODE_ENV=development`
+- 注意：生产环境应使用数据库迁移
 
 ---
 
-## 如果所有方法都不行
+### 问题 4：端口配置错误
 
-可以考虑使用其他平台：
-- **Render**: https://render.com
-- **Fly.io**: https://fly.io
-- **DigitalOcean App Platform**: https://www.digitalocean.com
+**错误信息**：`Port already in use` 或服务无法启动
 
-这些平台也有免费的部署选项。
+**检查**：
+- 确认 `PORT` 环境变量已设置
+- Railway 会自动设置 `PORT`，通常不需要手动设置
+
+**解决**：
+- 确保 `PORT` 环境变量存在（即使值不需要，也要有）
+- 或者删除 `PORT` 变量，让 Railway 自动设置
+
+---
+
+### 问题 5：构建失败
+
+**错误信息**：`npm install` 失败或构建错误
+
+**检查**：
+1. 查看 **Deployments** 标签页的构建日志
+2. 确认 **Root Directory** 设置为 `backend`
+
+**解决**：
+- 确认 `backend/package.json` 存在
+- 检查 Node.js 版本（Railway 通常自动检测）
+- 查看构建日志中的具体错误
+
+---
+
+## 📋 完整环境变量清单
+
+在 Railway **Variables** 中确保以下所有变量都存在：
+
+```bash
+# 必需的环境变量
+NODE_ENV=production
+PORT=3000
+
+# 数据库配置（Supabase）
+DB_HOST=db.omtonocmwbqkadzkzmlt.supabase.co
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=Ll3uXrXdiiMZ0KTv
+DB_DATABASE=postgres
+
+# JWT 配置
+JWT_SECRET=QumEj6dTi4IcuH4JDslEzZuljs1kv8jSkfhIVg6GErM=
+JWT_EXPIRES_IN=7d
+
+# CORS 配置
+CORS_ORIGIN=https://xiaomumaozi88.github.io
+```
+
+---
+
+## 🔍 诊断步骤
+
+### 步骤 1：查看日志
+
+1. 点击服务 → **Logs** 标签
+2. 查看最后 50-100 行日志
+3. 寻找红色错误信息
+4. 复制错误信息
+
+### 步骤 2：检查环境变量
+
+1. 点击服务 → **Variables** 标签
+2. 对照上方清单检查所有变量
+3. 确认拼写和值都正确
+
+### 步骤 3：测试数据库连接
+
+使用 Railway CLI 测试：
+
+```bash
+railway run node -e "
+const { Client } = require('pg');
+const client = new Client({
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  user: process.env.DB_USERNAME,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
+});
+client.connect().then(() => {
+  console.log('✅ 数据库连接成功！');
+  client.end();
+}).catch(err => {
+  console.error('❌ 数据库连接失败:', err.message);
+  process.exit(1);
+});
+"
+```
+
+### 步骤 4：检查服务配置
+
+1. **Settings** → **Root Directory**: `backend`
+2. **Settings** → **Start Command**: `npm run start:prod`
+3. **Settings** → **Build Command**: （留空，使用默认）
+
+---
+
+## 🚀 快速修复流程
+
+1. **查看日志** → 找到错误原因
+2. **检查环境变量** → 确保所有变量都存在
+3. **重新部署** → 在 Deployments 标签页点击 "Redeploy"
+4. **如果仍有问题** → 查看下方的临时解决方案
+
+---
+
+## 🔧 临时解决方案（如果急需启动）
+
+### 方案 1：临时启用数据库同步（仅用于测试）
+
+添加环境变量：
+```
+NODE_ENV=development
+```
+
+⚠️ **警告**：这会在每次启动时自动同步数据库结构，生产环境不推荐使用。
+
+### 方案 2：手动运行初始化脚本
+
+```bash
+# 使用 Railway CLI
+railway run npm run init:data
+```
+
+---
+
+## 📞 需要帮助？
+
+如果以上方法都无法解决，请提供：
+1. **Logs** 中的完整错误信息
+2. **Variables** 中的环境变量列表（隐藏敏感信息）
+3. **Settings** 中的配置信息
+
+我会帮你进一步排查！
 
