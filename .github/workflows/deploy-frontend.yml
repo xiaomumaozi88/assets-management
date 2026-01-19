@@ -46,6 +46,12 @@ jobs:
           VITE_BASE_PATH: '/assets-management/'
         run: npm run build
 
+      - name: 修复 SPA 路由（创建 404.html）
+        working-directory: ./frontend
+        # 复制 index.html 为 404.html，GitHub Pages 会在 404 时使用它
+        # 这样所有路由都会由 React Router 处理
+        run: cp dist/index.html dist/404.html
+
       - name: 配置 GitHub Pages
         uses: actions/configure-pages@v4
 
