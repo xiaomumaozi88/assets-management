@@ -289,7 +289,7 @@ const Assets = () => {
     setExpandedRows(newExpanded);
   };
 
-  const _handleOpenAssetModal = (asset?: Asset) => {
+  const handleOpenAssetModal = (asset?: Asset) => {
     if (asset) {
       setEditingAsset(asset);
       setAssetFormData({
