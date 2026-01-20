@@ -19,6 +19,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "init:data": "ts-node -r tsconfig-paths/register src/scripts/init-data.ts",
+    "export:data": "ts-node -r tsconfig-paths/register src/scripts/export-data.ts",
     "create:test-users": "ts-node -r tsconfig-paths/register src/scripts/create-test-users.ts"
   },
   "dependencies": {

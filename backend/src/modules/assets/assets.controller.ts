@@ -26,6 +26,11 @@ export class AssetsController {
     return this.assetsService.findByOwner(req.user.id);
   }
 
+  @Get('my/overview')
+  getMyAssetsOverview(@Request() req) {
+    return this.assetsService.getMyAssetsOverview(req.user.id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.assetsService.findOne(id);

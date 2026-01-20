@@ -74,6 +74,11 @@ const AssetTypes = () => {
   const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; role?: string }>>([]); // 用户列表
   const [ownerFieldHeader, setOwnerFieldHeader] = useState<string>(''); // 选择的作为owner_id来源的字段（表头名称）
   const [adminUser, setAdminUser] = useState<{ id: string; name: string; email: string } | null>(null); // 系统管理员用户
+  
+  // 弹窗提交 loading 状态
+  const [assetTypeSubmitLoading, setAssetTypeSubmitLoading] = useState(false);
+  const [templateSubmitLoading, setTemplateSubmitLoading] = useState(false);
+  const [enumSubmitLoading, setEnumSubmitLoading] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<AssetTypeFormData>();
 
@@ -313,6 +318,8 @@ const AssetTypes = () => {
 
   const handleTemplateSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (templateSubmitLoading) return;
+    
     const formData = new FormData(e.currentTarget);
     const templateData = {
       asset_type_id: currentAssetTypeId!,
@@ -325,6 +332,7 @@ const AssetTypes = () => {
     };
 
     try {
+      setTemplateSubmitLoading(true);
       setError('');
       let templateId: string;
       
@@ -517,6 +525,8 @@ const AssetTypes = () => {
       }
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || '操作失败');
+    } finally {
+      setTemplateSubmitLoading(false);
     }
   };
 
@@ -550,7 +560,10 @@ const AssetTypes = () => {
   };
 
   const onSubmit = async (data: AssetTypeFormData) => {
+    if (assetTypeSubmitLoading) return;
+    
     try {
+      setAssetTypeSubmitLoading(true);
       setError('');
       if (editingItem) {
         await assetTypesService.update(editingItem.id, data);
@@ -561,6 +574,8 @@ const AssetTypes = () => {
       loadAssetTypes();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || '操作失败');
+    } finally {
+      setAssetTypeSubmitLoading(false);
     }
   };
 
@@ -637,9 +652,10 @@ const AssetTypes = () => {
 
   const handleEnumSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentAssetTypeId) return;
+    if (!currentAssetTypeId || enumSubmitLoading) return;
     
     try {
+      setEnumSubmitLoading(true);
       setError('');
       const enumData = {
         name: enumFormData.name,
@@ -661,6 +677,8 @@ const AssetTypes = () => {
       loadEnumValues(currentAssetTypeId);
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || '操作失败');
+    } finally {
+      setEnumSubmitLoading(false);
     }
   };
 
@@ -912,7 +930,7 @@ const AssetTypes = () => {
                             onClick={() => handleOpenTemplateModal(item.id)}
                             style={{ fontSize: '11px', padding: '3px 8px' }}
                           >
-                            + 模板
+                            + 新增表格
                           </button>
                           <button
                             className="btn btn-small btn-edit"
@@ -1183,8 +1201,8 @@ const AssetTypes = () => {
                 <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>
                   取消
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingItem ? '保存' : '创建'}
+                <button type="submit" className="btn btn-primary" disabled={assetTypeSubmitLoading}>
+                  {assetTypeSubmitLoading ? '提交中...' : (editingItem ? '保存' : '创建')}
                 </button>
               </div>
             </form>
@@ -1856,8 +1874,8 @@ const AssetTypes = () => {
                 <button type="button" className="btn btn-secondary" onClick={handleCloseTemplateModal}>
                   取消
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingTemplate ? '保存' : '创建'}
+                <button type="submit" className="btn btn-primary" disabled={templateSubmitLoading}>
+                  {templateSubmitLoading ? '提交中...' : (editingTemplate ? '保存' : '创建')}
                 </button>
               </div>
             </form>
@@ -2010,8 +2028,8 @@ const AssetTypes = () => {
                 <button type="button" className="btn btn-secondary" onClick={handleCloseEnumModal}>
                   取消
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingEnum ? '保存' : '创建'}
+                <button type="submit" className="btn btn-primary" disabled={enumSubmitLoading}>
+                  {enumSubmitLoading ? '提交中...' : (editingEnum ? '保存' : '创建')}
                 </button>
               </div>
             </form>

@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Asset } from './entities/asset.entity';
 import { AssetHistory, ActionType } from './entities/asset-history.entity';
+import { AssetType } from '../asset-types/entities/asset-type.entity';
+import { AssetTemplate } from '../asset-templates/entities/asset-template.entity';
 
 @Injectable()
 export class AssetsService {
@@ -11,6 +13,10 @@ export class AssetsService {
     private assetsRepository: Repository<Asset>,
     @InjectRepository(AssetHistory)
     private assetHistoryRepository: Repository<AssetHistory>,
+    @InjectRepository(AssetType)
+    private assetTypesRepository: Repository<AssetType>,
+    @InjectRepository(AssetTemplate)
+    private assetTemplatesRepository: Repository<AssetTemplate>,
   ) {}
 
   async create(createDto: any, userId: string): Promise<Asset> {
@@ -117,6 +123,30 @@ export class AssetsService {
 
   async remove(id: string): Promise<void> {
     await this.assetsRepository.delete(id);
+  }
+
+  async getMyAssetsOverview(ownerId: string): Promise<any> {
+    // 获取用户的资产列表
+    const assets = await this.findByOwner(ownerId);
+    
+    // 获取所有资产类型（不管用户是否有资产）
+    const allAssetTypes = await this.assetTypesRepository
+      .createQueryBuilder('type')
+      .orderBy('type.sort_order', 'ASC')
+      .addOrderBy('type.created_at', 'DESC')
+      .getMany();
+    
+    // 计算每个类型的资产数量
+    const typeStats = allAssetTypes.map(type => {
+      const count = assets ? assets.filter(a => a.asset_type_id === type.id).length : 0;
+      return { typeId: type.id, count };
+    });
+    
+    return {
+      assets: assets || [],
+      assetTypes: allAssetTypes,
+      typeStats,
+    };
   }
 }
 

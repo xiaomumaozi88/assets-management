@@ -6,5 +6,6 @@ export const assetsService = {
   create: (data: any) => api.post('/assets', data),
   update: (id: string, data: any) => api.patch(`/assets/${id}`, data),
   delete: (id: string) => api.delete(`/assets/${id}`),
+  getMyAssetsOverview: () => api.get('/assets/my/overview'),
 };
 

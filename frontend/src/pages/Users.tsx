@@ -18,6 +18,7 @@ const Users = () => {
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<UserFormData>({
     defaultValues: {
@@ -75,7 +76,10 @@ const Users = () => {
   };
 
   const onSubmit = async (data: UserFormData) => {
+    if (submitLoading) return;
+    
     try {
+      setSubmitLoading(true);
       setError('');
       if (editingUser) {
         // 更新用户
@@ -110,6 +114,8 @@ const Users = () => {
       loadUsers();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || '操作失败');
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -293,8 +299,8 @@ const Users = () => {
                 <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>
                   取消
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingUser ? '更新' : '创建'}
+                <button type="submit" className="btn btn-primary" disabled={submitLoading}>
+                  {submitLoading ? '提交中...' : (editingUser ? '更新' : '创建')}
                 </button>
               </div>
             </form>

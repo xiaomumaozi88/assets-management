@@ -48,6 +48,15 @@ const Assets = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
+  // 下拉框 loading 状态
+  const [assetTypesLoading, setAssetTypesLoading] = useState(false);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [businessLinesLoading, setBusinessLinesLoading] = useState(false);
+  
+  // 弹窗提交 loading 状态
+  const [assetSubmitLoading, setAssetSubmitLoading] = useState(false);
+  const [fieldSubmitLoading, setFieldSubmitLoading] = useState(false);
+  
   const [selectedAssetTypeId, setSelectedAssetTypeId] = useState<string>('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
@@ -185,24 +194,31 @@ const Assets = () => {
 
   const loadAssetTypes = async () => {
     try {
+      setAssetTypesLoading(true);
       const data = await assetTypesService.getAll();
       setAssetTypes(Array.isArray(data) ? data : []);
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || '加载失败');
+    } finally {
+      setAssetTypesLoading(false);
     }
   };
 
   const loadBusinessLines = async () => {
     try {
+      setBusinessLinesLoading(true);
       const data = await businessLinesService.getAll();
       setBusinessLines(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('加载业务线失败:', err);
+    } finally {
+      setBusinessLinesLoading(false);
     }
   };
 
   const loadTemplates = async (assetTypeId: string) => {
     try {
+      setTemplatesLoading(true);
       const data = await assetTemplatesService.getAll(assetTypeId);
       setTemplates(Array.isArray(data) ? data : []);
       if (Array.isArray(data) && data.length > 0) {
@@ -212,6 +228,8 @@ const Assets = () => {
       }
     } catch (err) {
       console.error('加载模板失败:', err);
+    } finally {
+      setTemplatesLoading(false);
     }
   };
 
@@ -868,7 +886,10 @@ const Assets = () => {
 
   const handleAssetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (assetSubmitLoading) return;
+    
     try {
+      setAssetSubmitLoading(true);
       setError('');
       
       // 验证必填字段：业务线
@@ -905,6 +926,8 @@ const Assets = () => {
       loadAssets(selectedTemplateId);
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || '操作失败');
+    } finally {
+      setAssetSubmitLoading(false);
     }
   };
 
@@ -930,7 +953,10 @@ const Assets = () => {
 
   const handleFieldSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (fieldSubmitLoading) return;
+    
     try {
+      setFieldSubmitLoading(true);
       setError('');
       const template = templates.find(t => t.id === selectedTemplateId);
       if (!template) return;
@@ -968,6 +994,8 @@ const Assets = () => {
       await loadFields(selectedTemplateId);
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || '操作失败');
+    } finally {
+      setFieldSubmitLoading(false);
     }
   };
 
@@ -1049,9 +1077,10 @@ const Assets = () => {
           <select
             value={selectedAssetTypeId}
             onChange={(e) => setSelectedAssetTypeId(e.target.value)}
+            disabled={assetTypesLoading}
             style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #d9d9d9' }}
           >
-            <option value="">选择资产类型</option>
+            <option value="">{assetTypesLoading ? '加载中...' : '选择资产类型'}</option>
             {assetTypes.map(type => (
               <option key={type.id} value={type.id}>{type.name}</option>
             ))}
@@ -1061,9 +1090,10 @@ const Assets = () => {
             <select
               value={selectedTemplateId}
               onChange={(e) => setSelectedTemplateId(e.target.value)}
+              disabled={templatesLoading}
               style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #d9d9d9' }}
             >
-              <option value="">选择表格</option>
+              <option value="">{templatesLoading ? '加载中...' : '选择表格'}</option>
               {templates.map(template => (
                 <option key={template.id} value={template.id}>{template.name}</option>
               ))}
@@ -1191,7 +1221,7 @@ const Assets = () => {
               {assets.length === 0 ? (
                 <tr>
                   <td colSpan={fields.length + 3} className="empty-state">
-                    暂无数据，点击"新增资产"创建第一条记录
+                    暂无数据，点击"新增行"创建第一条记录
                   </td>
                 </tr>
               ) : (
@@ -1244,9 +1274,10 @@ const Assets = () => {
                 <select
                   value={assetFormData.business_line_id || ''}
                   onChange={(e) => setAssetFormData({ ...assetFormData, business_line_id: e.target.value })}
+                  disabled={businessLinesLoading}
                   required
                 >
-                  <option value="">请选择</option>
+                  <option value="">{businessLinesLoading ? '加载中...' : '请选择'}</option>
                   {businessLines.map(bl => (
                     <option key={bl.id} value={bl.id}>{bl.name}</option>
                   ))}
@@ -1287,8 +1318,8 @@ const Assets = () => {
                 <button type="button" className="btn btn-secondary" onClick={handleCloseAssetModal}>
                   取消
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingAsset ? '保存' : '创建'}
+                <button type="submit" className="btn btn-primary" disabled={assetSubmitLoading}>
+                  {assetSubmitLoading ? '提交中...' : (editingAsset ? '保存' : '创建')}
                 </button>
               </div>
             </form>
@@ -1421,8 +1452,8 @@ const Assets = () => {
                 <button type="button" className="btn btn-secondary" onClick={handleCloseFieldModal}>
                   取消
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  保存
+                <button type="submit" className="btn btn-primary" disabled={fieldSubmitLoading}>
+                  {fieldSubmitLoading ? '保存中...' : '保存'}
                 </button>
               </div>
             </form>

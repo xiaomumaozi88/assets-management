@@ -40,52 +40,49 @@ const MyAssets = () => {
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [activeSubTab, setActiveSubTab] = useState<Record<string, string>>({}); // typeId -> templateId
   const [pagination, setPagination] = useState<Record<string, { current: number; pageSize: number; total: number }>>({});
+  
+  // 下拉框 loading 状态
+  const [assetTypesLoading, setAssetTypesLoading] = useState(false);
+  const [templatesLoading, setTemplatesLoading] = useState<Record<string, boolean>>({}); // typeId -> loading
 
   useEffect(() => {
-    loadAssetTypes();
-    loadMyAssets();
+    loadOverview();
   }, []);
 
-  const loadAssetTypes = async () => {
-    try {
-      const data = await assetTypesService.getAll();
-      const typesList = Array.isArray(data) ? data : [];
-      setAssetTypes(typesList);
-      
-      // 为每个资产类型加载模板
-      const templatesMap: Record<string, AssetTemplate[]> = {};
-      for (const type of typesList) {
-        try {
-          const templatesData = await assetTemplatesService.getAll(type.id);
-          const templates = Array.isArray(templatesData) ? templatesData : [];
-          templatesMap[type.id] = templates;
-          
-          // 设置默认激活的子标签（第一个模板）
-          if (templates.length > 0 && !activeSubTab[type.id]) {
-            setActiveSubTab(prev => ({ ...prev, [type.id]: templates[0].id }));
-          }
-        } catch (err) {
-          console.error(`加载资产类型 ${type.name} 的模板失败:`, err);
-          templatesMap[type.id] = [];
-        }
+  // 当切换到资产类型 tab 时，加载该类型的模板
+  useEffect(() => {
+    if (activeTab && activeTab !== 'overview' && assetTypes.some(type => type.id === activeTab)) {
+      // 检查是否已经加载过该类型的模板
+      if (!templatesByType[activeTab] || templatesByType[activeTab].length === 0) {
+        loadTemplatesForType(activeTab);
       }
-      setTemplatesByType(templatesMap);
-    } catch (err) {
-      console.error('加载资产类型失败:', err);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
-  const loadMyAssets = async () => {
+  const loadOverview = async () => {
     try {
       setLoading(true);
+      setAssetTypesLoading(true);
       setError('');
-      const data = await assetsService.getAll({ my: 'true' });
-      const assetsList = Array.isArray(data) ? data : [];
+      
+      // 使用总览接口获取资产和资产类型
+      const overview: any = await assetsService.getMyAssetsOverview();
+      
+      // 设置资产列表
+      const assetsList = Array.isArray(overview.assets) ? overview.assets : [];
       setAllAssets(assetsList);
       
-      // 加载所有模板的字段配置
+      // 设置资产类型
+      const typesList = Array.isArray(overview.assetTypes) ? overview.assetTypes : [];
+      setAssetTypes(typesList);
+      
+      // 初始化模板映射为空（按需加载）
+      setTemplatesByType({});
+      
+      // 加载所有模板的字段配置（只加载用户已有资产的模板字段）
       const templateIds = new Set<string>();
-      assetsList.forEach(asset => {
+      assetsList.forEach((asset: Asset) => {
         if (asset.asset_template_id) {
           templateIds.add(asset.asset_template_id);
         }
@@ -114,6 +111,64 @@ const MyAssets = () => {
       setError(err.response?.data?.message || err.message || '加载失败');
     } finally {
       setLoading(false);
+      setAssetTypesLoading(false);
+    }
+  };
+
+  // 加载指定资产类型的模板
+  const loadTemplatesForType = async (typeId: string) => {
+    // 如果已经加载过，直接返回
+    if (templatesByType[typeId] && templatesByType[typeId].length > 0) {
+      return;
+    }
+
+    try {
+      setTemplatesLoading(prev => ({ ...prev, [typeId]: true }));
+      
+      // 请求该类型的模板
+      const templatesData = await assetTemplatesService.getAll(typeId);
+      const templates = Array.isArray(templatesData) ? templatesData : [];
+      
+      // 更新模板映射
+      setTemplatesByType(prev => ({
+        ...prev,
+        [typeId]: templates,
+      }));
+      
+      // 设置默认激活的子标签（第一个模板）
+      if (templates.length > 0 && !activeSubTab[typeId]) {
+        setActiveSubTab(prev => ({ ...prev, [typeId]: templates[0].id }));
+      }
+      
+      // 加载这些模板的字段配置（如果还没有加载）
+      const fieldsMap: Record<string, AssetField[]> = { ...templateFields };
+      for (const template of templates) {
+        if (!fieldsMap[template.id]) {
+          try {
+            const fieldsData = await assetFieldsService.getByTemplate(template.id);
+            let fields: AssetField[] = [];
+            if (Array.isArray(fieldsData)) {
+              fields = fieldsData as unknown as AssetField[];
+            } else if (fieldsData && typeof fieldsData === 'object' && 'data' in fieldsData && Array.isArray(fieldsData.data)) {
+              fields = fieldsData.data as unknown as AssetField[];
+            }
+            fieldsMap[template.id] = fields;
+          } catch (err) {
+            console.error(`加载模板 ${template.id} 的字段失败:`, err);
+            fieldsMap[template.id] = [];
+          }
+        }
+      }
+      setTemplateFields(fieldsMap);
+    } catch (err) {
+      console.error(`加载资产类型 ${typeId} 的模板失败:`, err);
+      // 即使失败也设置空数组，避免重复请求
+      setTemplatesByType(prev => ({
+        ...prev,
+        [typeId]: [],
+      }));
+    } finally {
+      setTemplatesLoading(prev => ({ ...prev, [typeId]: false }));
     }
   };
 
@@ -407,6 +462,10 @@ const MyAssets = () => {
 
   // 渲染总览
   const renderOverview = () => {
+    if (assetTypesLoading) {
+      return <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>加载中...</div>;
+    }
+    
     const stats = getAssetTypeStats();
     const totalCount = allAssets.length;
 
@@ -438,6 +497,15 @@ const MyAssets = () => {
 
   // 渲染资产类型表格（按模板分组）
   const renderAssetTypeTable = (typeId: string) => {
+    if (assetTypesLoading) {
+      return <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>加载中...</div>;
+    }
+    
+    // 如果模板正在加载，显示加载提示
+    if (templatesLoading[typeId]) {
+      return <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>加载模板中...</div>;
+    }
+    
     const templates = templatesByType[typeId] || [];
     const currentSubTab = activeSubTab[typeId] || (templates.length > 0 ? templates[0].id : '');
 

@@ -24,6 +24,19 @@
   border-bottom: 1px solid #303030;
 }
 
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid #303030;
+}
+
+.user-info {
+  color: white;
+  font-size: 14px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
 .nav-menu {
   list-style: none;
   padding: 0;
@@ -56,6 +69,7 @@
   border-radius: 4px;
   cursor: pointer;
   margin-top: auto;
+  width: 100%;
 }
 
 .logout-btn:hover {

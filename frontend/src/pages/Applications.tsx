@@ -30,6 +30,16 @@ const Applications = () => {
   const [fieldMaps, setFieldMaps] = useState<Record<string, Record<string, string>>>({}); // templateId -> {fieldCode: fieldName}
   const [fieldOptionsCache, setFieldOptionsCache] = useState<Record<string, Array<{ value: string; label: string }>>>({});
   const [fieldOptionsLoading, setFieldOptionsLoading] = useState<Record<string, boolean>>({});
+  
+  // 下拉框 loading 状态
+  const [assetTypesLoading, setAssetTypesLoading] = useState(false);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [businessLinesLoading, setBusinessLinesLoading] = useState(false);
+  
+  // 弹窗提交 loading 状态
+  const [applicationSubmitLoading, setApplicationSubmitLoading] = useState(false);
+  const [approvalSubmitLoading, setApprovalSubmitLoading] = useState(false);
   const [formData, setFormData] = useState<any>({
     asset_type_id: '',
     asset_template_id: '',
@@ -116,28 +126,37 @@ const Applications = () => {
 
   const loadAssetTypes = async () => {
     try {
+      setAssetTypesLoading(true);
       const data = await assetTypesService.getAll();
       setAssetTypes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('加载资产类型失败:', err);
+    } finally {
+      setAssetTypesLoading(false);
     }
   };
 
   const loadUsers = async () => {
     try {
+      setUsersLoading(true);
       const data = await usersService.getAll();
       setUsers(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('加载用户失败:', err);
+    } finally {
+      setUsersLoading(false);
     }
   };
 
   const loadBusinessLines = async () => {
     try {
+      setBusinessLinesLoading(true);
       const data = await businessLinesService.getAll();
       setBusinessLines(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('加载业务线失败:', err);
+    } finally {
+      setBusinessLinesLoading(false);
     }
   };
 
@@ -232,11 +251,14 @@ const Applications = () => {
 
   const loadTemplates = async (assetTypeId: string) => {
     try {
+      setTemplatesLoading(true);
       const data = await assetTemplatesService.getAll(assetTypeId);
       setTemplates(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('加载模板失败:', err);
       setTemplates([]);
+    } finally {
+      setTemplatesLoading(false);
     }
   };
 
@@ -450,7 +472,10 @@ const Applications = () => {
 
   const handleSubmitApplication = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (applicationSubmitLoading) return;
+    
     try {
+      setApplicationSubmitLoading(true);
       setError('');
       
       // 验证必填字段：业务线
@@ -502,6 +527,8 @@ const Applications = () => {
       loadData();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || '提交失败');
+    } finally {
+      setApplicationSubmitLoading(false);
     }
   };
 
@@ -540,7 +567,10 @@ const Applications = () => {
   };
 
   const handleApprove = async (approvalId: string, status: 'approved' | 'rejected', comments?: string, applicationData?: Record<string, any>) => {
+    if (approvalSubmitLoading) return;
+    
     try {
+      setApprovalSubmitLoading(true);
       setError('');
       // 更新处理状态，如果提供了补充的数据，一起传递
       const updateData: any = { status, comments };
@@ -555,6 +585,8 @@ const Applications = () => {
       loadData();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || '操作失败');
+    } finally {
+      setApprovalSubmitLoading(false);
     }
   };
 
@@ -920,9 +952,10 @@ const Applications = () => {
                 <select
                   value={formData.asset_type_id || ''}
                   onChange={(e) => handleAssetTypeChange(e.target.value)}
+                  disabled={assetTypesLoading}
                   required
                 >
-                  <option value="">请选择</option>
+                  <option value="">{assetTypesLoading ? '加载中...' : '请选择'}</option>
                   {assetTypes.map(type => (
                     <option key={type.id} value={type.id}>{type.name}</option>
                   ))}
@@ -937,9 +970,10 @@ const Applications = () => {
                   <select
                     value={formData.asset_template_id || ''}
                     onChange={(e) => handleTemplateChange(e.target.value)}
+                    disabled={templatesLoading}
                     required
                   >
-                    <option value="">请选择用途</option>
+                    <option value="">{templatesLoading ? '加载中...' : '请选择用途'}</option>
                     {templates.map(template => (
                       <option key={template.id} value={template.id}>
                         {template.purpose || template.name}
@@ -959,9 +993,10 @@ const Applications = () => {
                 <select
                   value={formData.business_line_id || ''}
                   onChange={(e) => setFormData({ ...formData, business_line_id: e.target.value })}
+                  disabled={businessLinesLoading}
                   required
                 >
-                  <option value="">请选择业务线</option>
+                  <option value="">{businessLinesLoading ? '加载中...' : '请选择业务线'}</option>
                   {businessLines.map(bl => (
                     <option key={bl.id} value={bl.id}>{bl.name}</option>
                   ))}
@@ -978,9 +1013,10 @@ const Applications = () => {
                 <select
                   value={formData.owner_id || ''}
                   onChange={(e) => setFormData({ ...formData, owner_id: e.target.value })}
+                  disabled={usersLoading}
                   required
                 >
-                  <option value="">默认：当前用户（申请人）</option>
+                  <option value="">{usersLoading ? '加载中...' : '默认：当前用户（申请人）'}</option>
                   {users.map(user => (
                     <option key={user.id} value={user.id}>{user.name} ({user.email})</option>
                   ))}
@@ -1021,9 +1057,10 @@ const Applications = () => {
                 <select
                   value={formData.approver_id || ''}
                   onChange={(e) => setFormData({ ...formData, approver_id: e.target.value })}
+                  disabled={usersLoading}
                   required
                 >
-                  <option value="">请选择</option>
+                  <option value="">{usersLoading ? '加载中...' : '请选择'}</option>
                   {users.map(user => (
                     <option key={user.id} value={user.id}>{user.name} ({user.email})</option>
                   ))}
@@ -1047,8 +1084,8 @@ const Applications = () => {
                 <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>
                   取消
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  提交申请
+                <button type="submit" className="btn btn-primary" disabled={applicationSubmitLoading}>
+                  {applicationSubmitLoading ? '提交中...' : '提交申请'}
                 </button>
               </div>
             </form>
@@ -1136,16 +1173,18 @@ const Applications = () => {
                     name="action"
                     value="reject"
                     className="btn btn-delete"
+                    disabled={approvalSubmitLoading}
                   >
-                    拒绝
+                    {approvalSubmitLoading ? '处理中...' : '拒绝'}
                   </button>
                   <button
                     type="submit"
                     name="action"
                     value="approve"
                     className="btn btn-primary"
+                    disabled={approvalSubmitLoading}
                   >
-                    通过
+                    {approvalSubmitLoading ? '处理中...' : '通过'}
                   </button>
                 </div>
               </form>

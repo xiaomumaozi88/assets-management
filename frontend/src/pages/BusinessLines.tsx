@@ -30,6 +30,7 @@ const BusinessLines = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<BusinessLine | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<BusinessLineFormData>();
 
@@ -82,7 +83,10 @@ const BusinessLines = () => {
   };
 
   const onSubmit = async (data: BusinessLineFormData) => {
+    if (submitLoading) return;
+    
     try {
+      setSubmitLoading(true);
       setError('');
       if (editingItem) {
         await businessLinesService.update(editingItem.id, data);
@@ -93,6 +97,8 @@ const BusinessLines = () => {
       loadBusinessLines();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || '操作失败');
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -273,8 +279,8 @@ const BusinessLines = () => {
                 <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>
                   取消
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingItem ? '保存' : '创建'}
+                <button type="submit" className="btn btn-primary" disabled={submitLoading}>
+                  {submitLoading ? '提交中...' : (editingItem ? '保存' : '创建')}
                 </button>
               </div>
             </form>
