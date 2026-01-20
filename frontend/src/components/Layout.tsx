@@ -21,7 +21,8 @@ const Layout = () => {
       if (tokenUser?.id) {
         // 调用 API 获取完整用户信息
         const user = await usersService.getById(tokenUser.id);
-        setCurrentUser(user as User);
+        // api.ts 的响应拦截器已经返回 response.data，所以这里直接使用
+        setCurrentUser((user as unknown as User));
       }
     } catch (error) {
       console.error('Failed to load user info:', error);
