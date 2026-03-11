@@ -5,6 +5,7 @@ import { Asset } from './entities/asset.entity';
 import { AssetHistory, ActionType } from './entities/asset-history.entity';
 import { AssetType } from '../asset-types/entities/asset-type.entity';
 import { AssetTemplate } from '../asset-templates/entities/asset-template.entity';
+import { AssetTag } from './entities/asset-tag.entity';
 
 @Injectable()
 export class AssetsService {
@@ -17,6 +18,8 @@ export class AssetsService {
     private assetTypesRepository: Repository<AssetType>,
     @InjectRepository(AssetTemplate)
     private assetTemplatesRepository: Repository<AssetTemplate>,
+    @InjectRepository(AssetTag)
+    private assetTagsRepository: Repository<AssetTag>,
   ) {}
 
   async create(createDto: any, userId: string): Promise<Asset> {
@@ -57,7 +60,8 @@ export class AssetsService {
       .leftJoinAndSelect('asset.project', 'project')
       .leftJoinAndSelect('asset.businessLine', 'businessLine')
       .leftJoinAndSelect('asset.children', 'children')
-      .leftJoinAndSelect('asset.parent', 'parent');
+      .leftJoinAndSelect('asset.parent', 'parent')
+      .leftJoinAndSelect('asset.tags', 'tags');
 
     if (filters?.business_line_id) {
       queryBuilder.andWhere('asset.business_line_id = :business_line_id', {
@@ -91,7 +95,7 @@ export class AssetsService {
   async findByOwner(ownerId: string): Promise<Asset[]> {
     return this.assetsRepository.find({
       where: { owner_id: ownerId },
-      relations: ['assetType', 'assetTemplate', 'owner', 'project', 'businessLine', 'children', 'parent'],
+      relations: ['assetType', 'assetTemplate', 'owner', 'project', 'businessLine', 'children', 'parent', 'tags'],
       order: { created_at: 'DESC' },
     });
   }
@@ -99,7 +103,7 @@ export class AssetsService {
   async findOne(id: string): Promise<Asset | null> {
     return this.assetsRepository.findOne({
       where: { id },
-      relations: ['assetType', 'owner', 'project', 'businessLine', 'histories', 'costs'],
+      relations: ['assetType', 'owner', 'project', 'businessLine', 'histories', 'costs', 'tags'],
     });
   }
 
@@ -147,6 +151,65 @@ export class AssetsService {
       assetTypes: allAssetTypes,
       typeStats,
     };
+  }
+
+  // TAG 相关方法
+  async getAssetTags(assetId: string): Promise<AssetTag[]> {
+    return this.assetTagsRepository.find({
+      where: { asset_id: assetId },
+      order: { tag_key: 'ASC', created_at: 'ASC' },
+    });
+  }
+
+  async updateAssetTags(assetId: string, tags: Array<{ key: string; value: string }>): Promise<AssetTag[]> {
+    // 先删除该资产的所有现有 TAG
+    await this.assetTagsRepository.delete({ asset_id: assetId });
+    
+    // 如果 tags 为空，直接返回
+    if (!tags || tags.length === 0) {
+      return [];
+    }
+
+    // 创建新的 TAG
+    const newTags = tags
+      .filter(tag => tag.key && tag.key.trim() && tag.value && tag.value.trim())
+      .map(tag =>
+        this.assetTagsRepository.create({
+          asset_id: assetId,
+          tag_key: tag.key.trim(),
+          tag_value: tag.value.trim(),
+        })
+      );
+
+    if (newTags.length === 0) {
+      return [];
+    }
+
+    await this.assetTagsRepository.save(newTags);
+    return newTags;
+  }
+
+  async addAssetTag(assetId: string, tagKey: string, tagValue: string): Promise<AssetTag> {
+    // 检查是否已存在相同的 TAG
+    const existing = await this.assetTagsRepository.findOne({
+      where: { asset_id: assetId, tag_key: tagKey.trim(), tag_value: tagValue.trim() },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const tag = this.assetTagsRepository.create({
+      asset_id: assetId,
+      tag_key: tagKey.trim(),
+      tag_value: tagValue.trim(),
+    });
+
+    return await this.assetTagsRepository.save(tag);
+  }
+
+  async removeAssetTag(assetId: string, tagId: string): Promise<void> {
+    await this.assetTagsRepository.delete({ id: tagId, asset_id: assetId });
   }
 }
 

@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
+import { Table, Tag } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import { usersService, type User, type CreateUserDto } from '../services/users.service';
 import './Users.css';
 
@@ -132,6 +134,79 @@ const Users = () => {
     }
   };
 
+  const columns: ColumnsType<User> = useMemo(() => [
+    {
+      title: '姓名',
+      dataIndex: 'name',
+      key: 'name',
+      width: 120,
+    },
+    {
+      title: '邮箱',
+      dataIndex: 'email',
+      key: 'email',
+      width: 200,
+    },
+    {
+      title: '角色',
+      dataIndex: 'role',
+      key: 'role',
+      width: 100,
+      render: (role: string) => (
+        <Tag color={role === 'admin' ? 'red' : 'blue'}>
+          {role === 'admin' ? '管理员' : '普通用户'}
+        </Tag>
+      ),
+    },
+    {
+      title: '部门',
+      dataIndex: 'department',
+      key: 'department',
+      width: 150,
+      render: (department: string) => department || '-',
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status: string) => (
+        <Tag color={status === 'active' ? 'green' : 'default'}>
+          {status === 'active' ? '启用' : '禁用'}
+        </Tag>
+      ),
+    },
+    {
+      title: '创建时间',
+      key: 'created_at',
+      width: 180,
+      render: (_: any, record: User) => 
+        record.created_at ? new Date(record.created_at).toLocaleString('zh-CN') : '-',
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 150,
+      fixed: 'right',
+      render: (_: any, record: User) => (
+        <div className="action-buttons">
+          <button
+            className="btn btn-small btn-edit"
+            onClick={() => handleOpenModal(record)}
+          >
+            编辑
+          </button>
+          <button
+            className="btn btn-small btn-delete"
+            onClick={() => handleDelete(record.id)}
+          >
+            删除
+          </button>
+        </div>
+      ),
+    },
+  ], [handleOpenModal, handleDelete]);
+
   return (
     <div className="users-page">
       <div className="page-header">
@@ -147,63 +222,16 @@ const Users = () => {
         <div className="loading">加载中...</div>
       ) : (
         <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>姓名</th>
-                <th>邮箱</th>
-                <th>角色</th>
-                <th>部门</th>
-                <th>状态</th>
-                <th>创建时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
-                    暂无用户数据
-                  </td>
-                </tr>
-              ) : (
-                users.map((user) => (
-                  <tr key={user.id}>
-                    <td>{user.name}</td>
-                    <td>{user.email}</td>
-                    <td>
-                      <span className={`badge ${user.role === 'admin' ? 'badge-admin' : 'badge-user'}`}>
-                        {user.role === 'admin' ? '管理员' : '普通用户'}
-                      </span>
-                    </td>
-                    <td>{user.department || '-'}</td>
-                    <td>
-                      <span className={`badge ${user.status === 'active' ? 'badge-active' : 'badge-inactive'}`}>
-                        {user.status === 'active' ? '启用' : '禁用'}
-                      </span>
-                    </td>
-                    <td>{user.created_at ? new Date(user.created_at).toLocaleString('zh-CN') : '-'}</td>
-                    <td>
-                      <div className="action-buttons">
-                        <button
-                          className="btn btn-small btn-edit"
-                          onClick={() => handleOpenModal(user)}
-                        >
-                          编辑
-                        </button>
-                        <button
-                          className="btn btn-small btn-delete"
-                          onClick={() => handleDelete(user.id)}
-                        >
-                          删除
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <Table
+            columns={columns}
+            dataSource={users}
+            rowKey="id"
+            pagination={false}
+            scroll={{ x: 'max-content' }}
+            locale={{
+              emptyText: '暂无用户数据'
+            }}
+          />
         </div>
       )}
 
