@@ -35,6 +35,7 @@ logs/
 # Testing
 coverage/
 .nyc_output/
+backend/test-results/
 
 # OS
 .DS_Store
