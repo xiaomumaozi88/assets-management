@@ -17,6 +17,7 @@ import { AssetHistory } from './asset-history.entity';
 import { Cost } from '../../costs/entities/cost.entity';
 import { Notification } from '../../notifications/entities/notification.entity';
 import { AssetRelation } from './asset-relation.entity';
+import { AssetTag } from './asset-tag.entity';
 
 export enum AssetStatus {
   ACTIVE = 'active',
@@ -123,6 +124,9 @@ export class Asset {
 
   @OneToMany(() => AssetRelation, (relation) => relation.relatedAsset)
   relatedAssets: AssetRelation[];
+
+  @OneToMany(() => AssetTag, (tag) => tag.asset)
+  tags: AssetTag[];
 
   @CreateDateColumn()
   created_at: Date;

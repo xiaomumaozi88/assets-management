@@ -1,0 +1,17 @@
+# 从仓库根构建时忽略，减小上下文
+.git
+.gitignore
+*.md
+.env*
+.DS_Store
+frontend/node_modules
+frontend/dist
+backend/node_modules
+backend/dist
+backend/test
+.github
+docs
+coverage
+*.log
+.vscode
+.idea

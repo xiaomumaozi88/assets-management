@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Put, UseGuards, Query, Request } from '@nestjs/common';
 import { AssetsService } from './assets.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
@@ -44,6 +44,33 @@ export class AssetsController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.assetsService.remove(id);
+  }
+
+  // TAG 相关接口
+  @Get(':id/tags')
+  getAssetTags(@Param('id') id: string) {
+    return this.assetsService.getAssetTags(id);
+  }
+
+  @Put(':id/tags')
+  updateAssetTags(
+    @Param('id') id: string,
+    @Body() body: { tags: Array<{ key: string; value: string }> },
+  ) {
+    return this.assetsService.updateAssetTags(id, body.tags);
+  }
+
+  @Post(':id/tags')
+  addAssetTag(
+    @Param('id') id: string,
+    @Body() body: { key: string; value: string },
+  ) {
+    return this.assetsService.addAssetTag(id, body.key, body.value);
+  }
+
+  @Delete(':id/tags/:tagId')
+  removeAssetTag(@Param('id') id: string, @Param('tagId') tagId: string) {
+    return this.assetsService.removeAssetTag(id, tagId);
   }
 }
 

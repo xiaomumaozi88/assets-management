@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
+import { Table, Tag } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import * as XLSX from 'xlsx';
 import { assetTypesService } from '../services/asset-types.service';
 import { assetTemplatesService, type AssetTemplate } from '../services/asset-templates.service';
@@ -74,6 +76,7 @@ const AssetTypes = () => {
   const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; role?: string }>>([]); // 用户列表
   const [ownerFieldHeader, setOwnerFieldHeader] = useState<string>(''); // 选择的作为owner_id来源的字段（表头名称）
   const [adminUser, setAdminUser] = useState<{ id: string; name: string; email: string } | null>(null); // 系统管理员用户
+  const [expandedFieldRows, setExpandedFieldRows] = useState<Set<number>>(new Set()); // 字段配置表格展开的行索引
   
   // 弹窗提交 loading 状态
   const [assetTypeSubmitLoading, setAssetTypeSubmitLoading] = useState(false);
@@ -213,13 +216,21 @@ const AssetTypes = () => {
       setEditingTemplate(template);
       try {
         const fieldsData = await assetFieldsService.getByTemplate(template.id);
-        setTemplateFields(Array.isArray(fieldsData) ? (fieldsData as unknown as AssetField[]) : []);
+        const fields = Array.isArray(fieldsData) ? (fieldsData as unknown as AssetField[]) : [];
+        setTemplateFields(fields);
+        // 自动展开所有 select 类型的字段
+        const selectFieldIndices = fields
+          .map((field, index) => field.field_type === 'select' ? index : -1)
+          .filter(idx => idx !== -1);
+        setExpandedFieldRows(new Set(selectFieldIndices));
       } catch (err) {
         setTemplateFields([]);
+        setExpandedFieldRows(new Set());
       }
     } else {
       setEditingTemplate(null);
       setTemplateFields([]);
+      setExpandedFieldRows(new Set());
     }
     setTemplateModalOpen(true);
   };
@@ -229,6 +240,7 @@ const AssetTypes = () => {
     setCurrentAssetTypeId(null);
     setEditingTemplate(null);
     setTemplateFields([]);
+    setExpandedFieldRows(new Set());
     setImportMode('create');
     setParsedExcelData(null);
     setOwnerFieldHeader(''); // 重置负责人字段选择
@@ -613,6 +625,105 @@ const AssetTypes = () => {
     }
   };
 
+  const columns: ColumnsType<AssetType> = useMemo(() => [
+    {
+      title: '序号',
+      key: 'index',
+      width: 80,
+      render: (_: any, __: AssetType, index: number) => index + 1,
+    },
+    {
+      title: '名称',
+      dataIndex: 'name',
+      key: 'name',
+      width: 150,
+    },
+    {
+      title: '代码',
+      dataIndex: 'code',
+      key: 'code',
+      width: 120,
+    },
+    {
+      title: '分类',
+      dataIndex: 'category',
+      key: 'category',
+      width: 120,
+      render: (category: string) => category || '-',
+    },
+    {
+      title: '描述',
+      dataIndex: 'description',
+      key: 'description',
+      width: 200,
+      render: (description: string) => description || '-',
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status: boolean, record: AssetType) => (
+        <Tag
+          color={status ? 'green' : 'default'}
+          style={{ cursor: 'pointer' }}
+          onClick={() => handleToggleStatus(record)}
+        >
+          {status ? '启用' : '禁用'}
+        </Tag>
+      ),
+    },
+    {
+      title: '排序',
+      dataIndex: 'sort_order',
+      key: 'sort_order',
+      width: 80,
+    },
+    {
+      title: '创建时间',
+      key: 'created_at',
+      width: 180,
+      render: (_: any, record: AssetType) => 
+        new Date(record.created_at).toLocaleString('zh-CN'),
+    },
+    {
+      title: '更新时间',
+      key: 'updated_at',
+      width: 180,
+      render: (_: any, record: AssetType) => 
+        new Date(record.updated_at).toLocaleString('zh-CN'),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 200,
+      fixed: 'right',
+      render: (_: any, record: AssetType) => (
+        <div className="action-buttons">
+          <button
+            className="btn btn-small btn-primary"
+            onClick={() => handleOpenTemplateModal(record.id)}
+            style={{ fontSize: '11px', padding: '3px 8px' }}
+          >
+            + 新增表格
+          </button>
+          <button
+            className="btn btn-small btn-edit"
+            onClick={() => handleOpenModal(record)}
+          >
+            编辑
+          </button>
+          <button
+            className="btn btn-small btn-delete"
+            onClick={() => setDeleteConfirm(record.id)}
+          >
+            删除
+          </button>
+        </div>
+      ),
+    },
+  ], [handleToggleStatus, handleOpenTemplateModal, handleOpenModal, setDeleteConfirm]);
+
   const handleOpenEnumModal = (assetTypeId: string, enumValue?: EnumValue) => {
     setCurrentAssetTypeId(assetTypeId);
     if (enumValue) {
@@ -850,6 +961,169 @@ const AssetTypes = () => {
     }));
   };
 
+  // 字段配置表格的列定义
+  const templateFieldsColumns: ColumnsType<AssetField & { _index: number }> = useMemo(() => [
+    {
+      title: '字段名称',
+      key: 'field_name',
+      width: 120,
+      render: (_: any, record: AssetField & { _index: number }) => (
+        <input
+          type="text"
+          value={record.field_name}
+          onChange={(e) => updateTemplateField(record._index, { field_name: e.target.value })}
+          placeholder="如：域名地址"
+          style={{ width: '100%', padding: '6px' }}
+        />
+      ),
+    },
+    {
+      title: '字段代码',
+      key: 'field_code',
+      width: 100,
+      render: (_: any, record: AssetField & { _index: number }) => (
+        <input
+          type="text"
+          value={record.field_code}
+          onChange={(e) => updateTemplateField(record._index, { field_code: e.target.value })}
+          placeholder="自动生成"
+          style={{ width: '100%', padding: '6px' }}
+        />
+      ),
+    },
+    {
+      title: '字段类型',
+      key: 'field_type',
+      width: 90,
+      render: (_: any, record: AssetField & { _index: number }) => (
+        <select
+          value={record.field_type}
+          onChange={(e) => {
+            const newFieldType = e.target.value as any;
+            updateTemplateField(record._index, { field_type: newFieldType });
+            // 如果改为select类型，自动展开该行
+            if (newFieldType === 'select') {
+              setExpandedFieldRows(new Set([...expandedFieldRows, record._index]));
+            } else {
+              // 如果改为其他类型，收起该行
+              const newExpanded = new Set(expandedFieldRows);
+              newExpanded.delete(record._index);
+              setExpandedFieldRows(newExpanded);
+            }
+            // 如果改为select类型，且已有枚举配置，触发匹配
+            if (newFieldType === 'select' && importMode === 'import' && parsedExcelData && currentAssetTypeId) {
+              // 使用当前字段的值（因为updateTemplateField会更新状态）
+              const currentField = { ...record, field_type: newFieldType };
+              const options = currentField.options;
+              if (options) {
+                if (options.enumId) {
+                  setTimeout(() => performEnumMatching(currentField.field_code, options.enumId), 0);
+                } else if (options.enumType) {
+                  setTimeout(() => performEnumMatching(currentField.field_code, `builtin_${options.enumType}`), 0);
+                }
+              }
+            }
+          }}
+          style={{ width: '100%', padding: '6px' }}
+        >
+          <option value="text">文本</option>
+          <option value="number">数字</option>
+          <option value="date">日期</option>
+          <option value="url">URL</option>
+          <option value="email">邮箱</option>
+          <option value="textarea">多行文本</option>
+          <option value="select">下拉选择</option>
+        </select>
+      ),
+    },
+    {
+      title: '必填',
+      key: 'is_required',
+      width: 60,
+      align: 'center',
+      render: (_: any, record: AssetField & { _index: number }) => (
+        <input
+          type="checkbox"
+          checked={record.is_required}
+          onChange={(e) => updateTemplateField(record._index, { is_required: e.target.checked })}
+        />
+      ),
+    },
+    {
+      title: '申请必填',
+      key: 'require_in_application',
+      width: 80,
+      align: 'center',
+      render: (_: any, record: AssetField & { _index: number }) => (
+        <input
+          type="checkbox"
+          checked={record.require_in_application || false}
+          onChange={(e) => updateTemplateField(record._index, { require_in_application: e.target.checked })}
+        />
+      ),
+    },
+    {
+      title: '主要字段',
+      key: 'is_primary',
+      width: 80,
+      align: 'center',
+      render: (_: any, record: AssetField & { _index: number }) => (
+        <input
+          type="checkbox"
+          checked={record.is_primary || false}
+          onChange={(e) => updateTemplateField(record._index, { is_primary: e.target.checked })}
+          title="主要字段将作为资产的描述/标题显示，可多选"
+        />
+      ),
+    },
+    {
+      title: '默认值',
+      key: 'default_value',
+      width: 100,
+      render: (_: any, record: AssetField & { _index: number }) => (
+        <input
+          type="text"
+          value={record.default_value || ''}
+          onChange={(e) => updateTemplateField(record._index, { default_value: e.target.value })}
+          placeholder="可选"
+          style={{ width: '100%', padding: '6px' }}
+        />
+      ),
+    },
+    {
+      title: '说明',
+      key: 'description',
+      width: 180,
+      render: (_: any, record: AssetField & { _index: number }) => (
+        <input
+          type="text"
+          value={record.validation_rule?.description || ''}
+          onChange={(e) => updateTemplateField(record._index, { 
+            validation_rule: { ...record.validation_rule, description: e.target.value }
+          })}
+          placeholder="字段说明"
+          style={{ width: '100%', padding: '6px' }}
+        />
+      ),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 80,
+      fixed: 'right',
+      align: 'center',
+      render: (_: any, record: AssetField & { _index: number }) => (
+        <button
+          type="button"
+          className="btn btn-small btn-delete"
+          onClick={() => removeTemplateField(record._index)}
+        >
+          删除
+        </button>
+      ),
+    },
+  ], [templateFields, importMode, parsedExcelData, currentAssetTypeId, enumValues, updateTemplateField, removeTemplateField, performEnumMatching, expandedFieldRows]);
+
   return (
     <div className="asset-types-page">
       <div className="page-header">
@@ -865,118 +1139,61 @@ const AssetTypes = () => {
         <div className="loading">加载中...</div>
       ) : (
         <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th style={{ width: '40px' }}></th>
-                <th>序号</th>
-                <th>名称</th>
-                <th>代码</th>
-                <th>分类</th>
-                <th>描述</th>
-                <th>状态</th>
-                <th>排序</th>
-                <th>创建时间</th>
-                <th>更新时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assetTypes.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="empty-state">
-                    暂无数据
-                  </td>
-                </tr>
-              ) : (
-                assetTypes.map((item, index) => (
-                  <>
-                    <tr key={item.id}>
-                      <td>
-                        <span
-                          onClick={() => toggleExpand(item.id)}
-                          style={{ cursor: 'pointer', userSelect: 'none', fontSize: '12px', display: 'inline-block', width: '20px' }}
-                        >
-                          {expandedTypes.has(item.id) ? '▼' : '▶'}
-                        </span>
-                      </td>
-                      <td>{index + 1}</td>
-                      <td>{item.name}</td>
-                      <td>{item.code}</td>
-                      <td>{item.category || '-'}</td>
-                      <td className="description-cell">
-                        {item.description || '-'}
-                      </td>
-                      <td>
-                        <span
-                          className={`status-badge ${item.status ? 'active' : 'inactive'}`}
-                          onClick={() => handleToggleStatus(item)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          {item.status ? '启用' : '禁用'}
-                        </span>
-                      </td>
-                      <td>{item.sort_order}</td>
-                      <td>
-                        {new Date(item.created_at).toLocaleString('zh-CN')}
-                      </td>
-                      <td>
-                        {new Date(item.updated_at).toLocaleString('zh-CN')}
-                      </td>
-                      <td>
-                        <div className="action-buttons">
-                          <button
-                            className="btn btn-small btn-primary"
-                            onClick={() => handleOpenTemplateModal(item.id)}
-                            style={{ fontSize: '11px', padding: '3px 8px' }}
-                          >
-                            + 新增表格
-                          </button>
-                          <button
-                            className="btn btn-small btn-edit"
-                            onClick={() => handleOpenModal(item)}
-                          >
-                            编辑
-                          </button>
-                          <button
-                            className="btn btn-small btn-delete"
-                            onClick={() => setDeleteConfirm(item.id)}
-                          >
-                            删除
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {expandedTypes.has(item.id) && (
-                      <tr>
-                        <td colSpan={11} style={{ padding: '0', backgroundColor: '#fafafa' }}>
-                          <div style={{ padding: '16px 24px' }}>
+          <Table
+            columns={columns}
+            dataSource={assetTypes}
+            rowKey="id"
+            pagination={false}
+            scroll={{ x: 'max-content' }}
+            expandable={{
+              expandedRowKeys: Array.from(expandedTypes),
+              onExpand: (expanded, record) => {
+                if (expanded) {
+                  setExpandedTypes(new Set([...expandedTypes, record.id]));
+                  // 默认选择"管理表格"标签页
+                  if (!activeTab[record.id]) {
+                    setActiveTab(prev => ({ ...prev, [record.id]: 'templates' }));
+                  }
+                  if (!templates[record.id]) {
+                    loadTemplates(record.id);
+                  }
+                  if (!enumValues[record.id]) {
+                    loadEnumValues(record.id);
+                  }
+                } else {
+                  const newExpanded = new Set(expandedTypes);
+                  newExpanded.delete(record.id);
+                  setExpandedTypes(newExpanded);
+                }
+              },
+              expandedRowRender: (record) => (
+                <div style={{ padding: '16px 24px', backgroundColor: '#fafafa' }}>
                             {/* 标签页 */}
                             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid #e8e8e8' }}>
                               <button
-                                onClick={() => setActiveTab(prev => ({ ...prev, [item.id]: 'templates' }))}
+                                onClick={() => setActiveTab(prev => ({ ...prev, [record.id]: 'templates' }))}
                                 style={{
                                   padding: '8px 16px',
                                   border: 'none',
                                   background: 'none',
                                   cursor: 'pointer',
-                                  borderBottom: activeTab[item.id] === 'templates' ? '2px solid #1890ff' : '2px solid transparent',
-                                  color: activeTab[item.id] === 'templates' ? '#1890ff' : '#666',
-                                  fontWeight: activeTab[item.id] === 'templates' ? 600 : 400,
+                                  borderBottom: (activeTab[record.id] === 'templates' || !activeTab[record.id]) ? '2px solid #1890ff' : '2px solid transparent',
+                                  color: (activeTab[record.id] === 'templates' || !activeTab[record.id]) ? '#1890ff' : '#666',
+                                  fontWeight: (activeTab[record.id] === 'templates' || !activeTab[record.id]) ? 600 : 400,
                                 }}
                               >
                                 管理表格
                               </button>
                               <button
-                                onClick={() => setActiveTab(prev => ({ ...prev, [item.id]: 'enums' }))}
+                                onClick={() => setActiveTab(prev => ({ ...prev, [record.id]: 'enums' }))}
                                 style={{
                                   padding: '8px 16px',
                                   border: 'none',
                                   background: 'none',
                                   cursor: 'pointer',
-                                  borderBottom: activeTab[item.id] === 'enums' ? '2px solid #1890ff' : '2px solid transparent',
-                                  color: activeTab[item.id] === 'enums' ? '#1890ff' : '#666',
-                                  fontWeight: activeTab[item.id] === 'enums' ? 600 : 400,
+                                  borderBottom: activeTab[record.id] === 'enums' ? '2px solid #1890ff' : '2px solid transparent',
+                                  color: activeTab[record.id] === 'enums' ? '#1890ff' : '#666',
+                                  fontWeight: activeTab[record.id] === 'enums' ? 600 : 400,
                                 }}
                               >
                                 管理枚举值
@@ -984,18 +1201,18 @@ const AssetTypes = () => {
                             </div>
                             
                             {/* 管理表格标签页 */}
-                            {activeTab[item.id] === 'templates' && (
+                            {(activeTab[record.id] === 'templates' || !activeTab[record.id]) && (
                               <>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                               <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>管理表格</h3>
                               <button
                                 className="btn btn-small btn-primary"
-                                onClick={() => handleOpenTemplateModal(item.id)}
+                                onClick={() => handleOpenTemplateModal(record.id)}
                               >
                                 + 新增表格
                               </button>
                             </div>
-                            {templates[item.id] && templates[item.id].length > 0 ? (
+                            {templates[record.id] && templates[record.id].length > 0 ? (
                               <table className="data-table" style={{ fontSize: '13px' }}>
                                 <thead>
                                   <tr>
@@ -1010,7 +1227,7 @@ const AssetTypes = () => {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {templates[item.id].map((template) => (
+                                  {templates[record.id].map((template) => (
                                     <tr key={template.id}>
                                       <td>{template.name}</td>
                                       <td>{template.purpose || '-'}</td>
@@ -1027,13 +1244,13 @@ const AssetTypes = () => {
                                         <div className="action-buttons">
                                           <button
                                             className="btn btn-small btn-edit"
-                                            onClick={() => handleOpenTemplateModal(item.id, template)}
+                                            onClick={() => handleOpenTemplateModal(record.id, template)}
                                           >
                                             编辑
                                           </button>
                                           <button
                                             className="btn btn-small btn-delete"
-                                            onClick={() => handleDeleteTemplate(template.id, item.id)}
+                                            onClick={() => handleDeleteTemplate(template.id, record.id)}
                                           >
                                             删除
                                           </button>
@@ -1052,18 +1269,18 @@ const AssetTypes = () => {
                             )}
                             
                             {/* 管理枚举值标签页 */}
-                            {activeTab[item.id] === 'enums' && (
+                            {activeTab[record.id] === 'enums' && (
                               <>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                               <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>管理枚举值</h3>
                               <button
                                 className="btn btn-small btn-primary"
-                                onClick={() => handleOpenEnumModal(item.id)}
+                                onClick={() => handleOpenEnumModal(record.id)}
                               >
                                 + 新增枚举值
                               </button>
                             </div>
-                            {enumValues[item.id] && enumValues[item.id].length > 0 ? (
+                            {enumValues[record.id] && enumValues[record.id].length > 0 ? (
                               <table className="data-table" style={{ fontSize: '13px' }}>
                                 <thead>
                                   <tr>
@@ -1077,7 +1294,7 @@ const AssetTypes = () => {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {enumValues[item.id].map((enumValue) => (
+                                  {enumValues[record.id].map((enumValue) => (
                                     <tr key={enumValue.id}>
                                       <td>{enumValue.name}</td>
                                       <td>{enumValue.code || '-'}</td>
@@ -1093,13 +1310,13 @@ const AssetTypes = () => {
                                         <div className="action-buttons">
                                           <button
                                             className="btn btn-small btn-edit"
-                                            onClick={() => handleOpenEnumModal(item.id, enumValue)}
+                                            onClick={() => handleOpenEnumModal(record.id, enumValue)}
                                           >
                                             编辑
                                           </button>
                                           <button
                                             className="btn btn-small btn-delete"
-                                            onClick={() => handleDeleteEnum(enumValue.id, item.id)}
+                                            onClick={() => handleDeleteEnum(enumValue.id, record.id)}
                                           >
                                             删除
                                           </button>
@@ -1117,14 +1334,12 @@ const AssetTypes = () => {
                             </>
                             )}
                           </div>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                ))
-              )}
-            </tbody>
-          </table>
+              ),
+            }}
+            locale={{
+              emptyText: '暂无数据'
+            }}
+          />
         </div>
       )}
 
@@ -1461,128 +1676,28 @@ const AssetTypes = () => {
                   </div>
                 ) : (
                   <div className="fields-table-container">
-                    <table className="fields-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: '12%' }}>字段名称</th>
-                          <th style={{ width: '10%' }}>字段代码</th>
-                          <th style={{ width: '9%' }}>字段类型</th>
-                          <th style={{ width: '5%' }}>必填</th>
-                          <th style={{ width: '5%' }}>申请必填</th>
-                          <th style={{ width: '5%' }}>主要字段</th>
-                          <th style={{ width: '9%' }}>默认值</th>
-                          <th style={{ width: '18%' }}>说明</th>
-                          <th style={{ width: '27%' }}>操作</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {templateFields.map((field, index) => (
-                          <React.Fragment key={index}>
-                            <tr>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={field.field_name}
-                                  onChange={(e) => updateTemplateField(index, { field_name: e.target.value })}
-                                  placeholder="如：域名地址"
-                                  style={{ width: '100%', padding: '6px' }}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={field.field_code}
-                                  onChange={(e) => updateTemplateField(index, { field_code: e.target.value })}
-                                  placeholder="自动生成"
-                                  style={{ width: '100%', padding: '6px' }}
-                                />
-                              </td>
-                              <td>
-                                <select
-                                  value={field.field_type}
-                                  onChange={(e) => {
-                                    const newFieldType = e.target.value as any;
-                                    updateTemplateField(index, { field_type: newFieldType });
-                                    // 如果改为select类型，且已有枚举配置，触发匹配
-                                    if (newFieldType === 'select' && importMode === 'import' && parsedExcelData && currentAssetTypeId) {
-                                      // 使用当前字段的值（因为updateTemplateField会更新状态）
-                                      const currentField = { ...field, field_type: newFieldType };
-                                      const options = currentField.options;
-                                      if (options) {
-                                        if (options.enumId) {
-                                          setTimeout(() => performEnumMatching(currentField.field_code, options.enumId), 0);
-                                        } else if (options.enumType) {
-                                          setTimeout(() => performEnumMatching(currentField.field_code, `builtin_${options.enumType}`), 0);
-                                        }
-                                      }
-                                    }
-                                  }}
-                                  style={{ width: '100%', padding: '6px' }}
-                                >
-                                  <option value="text">文本</option>
-                                  <option value="number">数字</option>
-                                  <option value="date">日期</option>
-                                  <option value="url">URL</option>
-                                  <option value="email">邮箱</option>
-                                  <option value="textarea">多行文本</option>
-                                  <option value="select">下拉选择</option>
-                                </select>
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={field.is_required}
-                                  onChange={(e) => updateTemplateField(index, { is_required: e.target.checked })}
-                                />
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={field.require_in_application || false}
-                                  onChange={(e) => updateTemplateField(index, { require_in_application: e.target.checked })}
-                                />
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={field.is_primary || false}
-                                  onChange={(e) => updateTemplateField(index, { is_primary: e.target.checked })}
-                                  title="主要字段将作为资产的描述/标题显示，可多选"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={field.default_value || ''}
-                                  onChange={(e) => updateTemplateField(index, { default_value: e.target.value })}
-                                  placeholder="可选"
-                                  style={{ width: '100%', padding: '6px' }}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={field.validation_rule?.description || ''}
-                                  onChange={(e) => updateTemplateField(index, { 
-                                    validation_rule: { ...field.validation_rule, description: e.target.value }
-                                  })}
-                                  placeholder="字段说明"
-                                  style={{ width: '100%', padding: '6px' }}
-                                />
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <button
-                                  type="button"
-                                  className="btn btn-small btn-delete"
-                                  onClick={() => removeTemplateField(index)}
-                                >
-                                  删除
-                                </button>
-                              </td>
-                            </tr>
-                            {field.field_type === 'select' && (
-                              <tr key={`options-${index}`} style={{ backgroundColor: '#fafafa' }}>
-                                <td colSpan={8} style={{ padding: '12px' }}>
+                    <Table
+                      columns={templateFieldsColumns}
+                      dataSource={templateFields.map((field, index) => ({ ...field, _index: index }))}
+                      rowKey={(_, index) => `field-${index}`}
+                      pagination={false}
+                      scroll={{ x: 'max-content' }}
+                      size="small"
+                      expandable={{
+                        expandedRowKeys: Array.from(expandedFieldRows).map(idx => `field-${idx}`),
+                        onExpand: (expanded, record: AssetField & { _index: number }) => {
+                          if (expanded) {
+                            setExpandedFieldRows(new Set([...expandedFieldRows, record._index]));
+                          } else {
+                            const newExpanded = new Set(expandedFieldRows);
+                            newExpanded.delete(record._index);
+                            setExpandedFieldRows(newExpanded);
+                          }
+                        },
+                        expandedRowRender: (record: AssetField & { _index: number }) => {
+                          const index = record._index;
+                          return record.field_type === 'select' ? (
+                            <div style={{ padding: '12px', backgroundColor: '#fafafa' }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     <div style={{ display: 'flex', gap: '12px' }}>
                                       <div style={{ flex: 1 }}>
@@ -1590,10 +1705,10 @@ const AssetTypes = () => {
                                           选择模式
                                         </label>
                                         <select
-                                          value={field.options?.multiple ? 'multiple' : 'single'}
+                                          value={record.options?.multiple ? 'multiple' : 'single'}
                                           onChange={(e) => updateTemplateField(index, {
                                             options: {
-                                              ...field.options,
+                                              ...record.options,
                                               multiple: e.target.value === 'multiple'
                                             }
                                           })}
@@ -1608,16 +1723,16 @@ const AssetTypes = () => {
                                           选项来源
                                         </label>
                                         <select
-                                          value={field.options?.source || 'manual'}
+                                          value={record.options?.source || 'manual'}
                                           onChange={(e) => {
                                             const source = e.target.value;
                                             const newOptions: any = {
-                                              ...field.options,
+                                              ...record.options,
                                               source,
-                                              multiple: field.options?.multiple || false
+                                              multiple: record.options?.multiple || false
                                             };
                                             if (source === 'manual') {
-                                              newOptions.items = field.options?.items || [];
+                                              newOptions.items = record.options?.items || [];
                                             } else if (source === 'enum') {
                                               newOptions.enumType = '';
                                             } else if (source === 'api') {
@@ -1637,13 +1752,13 @@ const AssetTypes = () => {
                                     </div>
 
                                     {/* 手动添加选项 */}
-                                    {(!field.options?.source || field.options?.source === 'manual') && (
+                                    {(!record.options?.source || record.options?.source === 'manual') && (
     <div>
                                         <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 500 }}>
                                           选项列表
                                         </label>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                          {(field.options?.items || []).map((item: any, itemIndex: number) => {
+                                          {(record.options?.items || []).map((item: any, itemIndex: number) => {
                                             const itemValue = typeof item === 'string' ? item : item.value;
                                             const itemLabel = typeof item === 'string' ? item : (item.label || item.value);
                                             return (
@@ -1653,14 +1768,14 @@ const AssetTypes = () => {
                                                   placeholder="标签"
                                                   value={itemLabel}
                                                   onChange={(e) => {
-                                                    const items = [...(field.options?.items || [])];
+                                                    const items = [...(record.options?.items || [])];
                                                     items[itemIndex] = {
                                                       value: itemValue,
                                                       label: e.target.value
                                                     };
                                                     updateTemplateField(index, {
                                                       options: {
-                                                        ...field.options,
+                                                        ...record.options,
                                                         items
                                                       }
                                                     });
@@ -1672,14 +1787,14 @@ const AssetTypes = () => {
                                                   placeholder="值"
                                                   value={itemValue}
                                                   onChange={(e) => {
-                                                    const items = [...(field.options?.items || [])];
+                                                    const items = [...(record.options?.items || [])];
                                                     items[itemIndex] = {
                                                       value: e.target.value,
                                                       label: itemLabel
                                                     };
                                                     updateTemplateField(index, {
                                                       options: {
-                                                        ...field.options,
+                                                        ...record.options,
                                                         items
                                                       }
                                                     });
@@ -1690,11 +1805,11 @@ const AssetTypes = () => {
                                                   type="button"
                                                   className="btn btn-small btn-delete"
                                                   onClick={() => {
-                                                    const items = [...(field.options?.items || [])];
+                                                    const items = [...(record.options?.items || [])];
                                                     items.splice(itemIndex, 1);
                                                     updateTemplateField(index, {
                                                       options: {
-                                                        ...field.options,
+                                                        ...record.options,
                                                         items
                                                       }
                                                     });
@@ -1710,11 +1825,11 @@ const AssetTypes = () => {
                                             type="button"
                                             className="btn btn-small btn-primary"
                                             onClick={() => {
-                                              const items = [...(field.options?.items || [])];
+                                              const items = [...(record.options?.items || [])];
                                               items.push({ value: '', label: '' });
                                               updateTemplateField(index, {
                                                 options: {
-                                                  ...field.options,
+                                                  ...record.options,
                                                   items
                                                 }
                                               });
@@ -1728,40 +1843,40 @@ const AssetTypes = () => {
                                     )}
 
                                     {/* 内置枚举 */}
-                                    {field.options?.source === 'enum' && (
+                                    {record.options?.source === 'enum' && (
                                       <div>
                                         <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 500 }}>
                                           选择枚举类型
                                         </label>
                                         <select
-                                          value={field.options?.enumId || (field.options?.enumType ? `builtin_${field.options.enumType}` : '') || ''}
+                                          value={record.options?.enumId || (record.options?.enumType ? `builtin_${record.options.enumType}` : '') || ''}
                                           onChange={(e) => {
                                             const value = e.target.value;
                                             if (value.startsWith('builtin_')) {
                                               // 内置枚举
                                               updateTemplateField(index, {
                                                 options: {
-                                                  ...field.options,
+                                                  ...record.options,
                                                   enumType: value.replace('builtin_', ''),
                                                   enumId: undefined,
                                                 }
                                               });
                                               // 触发枚举匹配
                                               if (importMode === 'import' && parsedExcelData && currentAssetTypeId) {
-                                                performEnumMatching(field.field_code, value);
+                                                performEnumMatching(record.field_code, value);
                                               }
                                             } else {
                                               // 资产项枚举
                                               updateTemplateField(index, {
                                                 options: {
-                                                  ...field.options,
+                                                  ...record.options,
                                                   enumId: value,
                                                   enumType: undefined,
                                                 }
                                               });
                                               // 触发枚举匹配
                                               if (importMode === 'import' && parsedExcelData && currentAssetTypeId) {
-                                                performEnumMatching(field.field_code, value);
+                                                performEnumMatching(record.field_code, value);
                                               }
                                             }
                                           }}
@@ -1779,14 +1894,14 @@ const AssetTypes = () => {
                                             </optgroup>
                                           )}
                                         </select>
-                                        {field.options?.enumType === 'business_lines' && (
+                                        {record.options?.enumType === 'business_lines' && (
                                           <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px', fontSize: '12px' }}>
                                             将使用业务线列表作为选项，值字段：id，标签字段：name
                                           </div>
                                         )}
-                                        {field.options?.enumId && currentAssetTypeId && enumValues[currentAssetTypeId] && (
+                                        {record.options?.enumId && currentAssetTypeId && enumValues[currentAssetTypeId] && (
                                           (() => {
-                                            const selectedEnum = enumValues[currentAssetTypeId].find(ev => ev.id === field.options?.enumId);
+                                            const selectedEnum = enumValues[currentAssetTypeId].find(ev => ev.id === record.options?.enumId);
                                             return selectedEnum ? (
                                               <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px', fontSize: '12px' }}>
                                                 已选择枚举：{selectedEnum.name}，包含 {selectedEnum.values?.length || 0} 个选项
@@ -1798,7 +1913,7 @@ const AssetTypes = () => {
                                     )}
 
                                     {/* 数据接口 */}
-                                    {field.options?.source === 'api' && (
+                                    {record.options?.source === 'api' && (
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         <div>
                                           <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 500 }}>
@@ -1807,10 +1922,10 @@ const AssetTypes = () => {
                                           <input
                                             type="text"
                                             placeholder="https://api.example.com/data"
-                                            value={field.options?.apiUrl || ''}
+                                            value={record.options?.apiUrl || ''}
                                             onChange={(e) => updateTemplateField(index, {
                                               options: {
-                                                ...field.options,
+                                                ...record.options,
                                                 apiUrl: e.target.value
                                               }
                                             })}
@@ -1825,10 +1940,10 @@ const AssetTypes = () => {
                                             <input
                                               type="text"
                                               placeholder="id"
-                                              value={field.options?.apiValueField || 'id'}
+                                              value={record.options?.apiValueField || 'id'}
                                               onChange={(e) => updateTemplateField(index, {
                                                 options: {
-                                                  ...field.options,
+                                                  ...record.options,
                                                   apiValueField: e.target.value
                                                 }
                                               })}
@@ -1842,10 +1957,10 @@ const AssetTypes = () => {
                                             <input
                                               type="text"
                                               placeholder="name"
-                                              value={field.options?.apiLabelField || 'name'}
+                                              value={record.options?.apiLabelField || 'name'}
                                               onChange={(e) => updateTemplateField(index, {
                                                 options: {
-                                                  ...field.options,
+                                                  ...record.options,
                                                   apiLabelField: e.target.value
                                                 }
                                               })}
@@ -1859,13 +1974,12 @@ const AssetTypes = () => {
                                       </div>
                                     )}
                                   </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        ))}
-                      </tbody>
-                    </table>
+                            </div>
+                          ) : null;
+                        },
+                        rowExpandable: (record: AssetField) => record.field_type === 'select',
+                      }}
+                    />
                   </div>
                 )}
               </div>

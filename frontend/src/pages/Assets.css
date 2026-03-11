@@ -43,13 +43,39 @@
 }
 
 .table-container {
-  overflow-x: auto;
   width: 100%;
+}
+
+/* Ant Design Table 样式优化 */
+.table-container .ant-table {
+  font-size: 14px;
+}
+
+.table-container .ant-table-thead > tr > th {
+  padding: 14px 16px;
+  background-color: #fafafa;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+}
+
+.table-container .ant-table-tbody > tr > td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.table-container .ant-table-tbody > tr.editing-row > td {
+  background-color: #f0f9ff;
+}
+
+/* 表格横向滚动 */
+.table-container .ant-table-body {
+  overflow-x: auto;
 }
 
 .data-table {
   width: 100%;
-  min-width: 100%;
+  min-width: max-content; /* 根据内容自动扩展，确保触发横向滚动 */
   border-collapse: collapse;
   background: white;
   table-layout: auto;
@@ -60,24 +86,34 @@
 }
 
 .data-table th {
-  padding: 12px;
+  padding: 14px 16px;
   text-align: left;
   font-weight: 600;
   color: #333;
   border-bottom: 2px solid #e8e8e8;
   white-space: nowrap;
+  font-size: 14px;
+  /* 确保表头不换行，保持最小宽度 */
+  min-width: fit-content;
 }
 
 .data-table td {
-  padding: 8px;
+  padding: 10px 12px;
   border-bottom: 1px solid #e8e8e8;
   color: #666;
   vertical-align: middle;
+  /* 允许单元格内容换行，但保持最小宽度 */
+  white-space: normal;
 }
 
 .editable-cell {
   position: relative;
-  min-width: 120px;
+  min-width: 160px;
+}
+
+/* 输入框内部的文本可以换行 */
+.editable-cell .inline-input {
+  white-space: normal;
 }
 
 .editable-cell > div {
@@ -102,7 +138,7 @@
 }
 
 .editing-row td {
-  padding: 4px;
+  padding: 8px 10px;
 }
 
 .data-table tr[style*="background-color: #fafafa"] {
@@ -412,12 +448,14 @@
 /* 内联编辑输入框样式 */
 .inline-input {
   width: 100%;
-  padding: 6px 8px;
+  padding: 8px 12px;
   border: 1px solid #d9d9d9;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 14px;
   box-sizing: border-box;
   background: white;
+  min-height: 36px;
+  line-height: 1.5;
 }
 
 .inline-input:focus {
@@ -428,11 +466,41 @@
 
 .inline-input[type="date"],
 .inline-input[type="number"] {
-  font-size: 13px;
+  font-size: 14px;
+}
+
+.inline-input[type="textarea"] {
+  padding: 8px 12px;
+  font-size: 14px;
+  min-height: 80px;
+  resize: vertical;
 }
 
 .inline-input[type="textarea"] {
   resize: vertical;
   min-height: 60px;
+}
+
+/* Antd Select 组件在表格中的样式 */
+.data-table .ant-select {
+  width: 100%;
+  font-size: 14px;
+}
+
+.data-table .ant-select-selector {
+  min-height: 36px !important;
+  padding: 4px 8px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+.data-table .ant-select-selection-item {
+  line-height: 28px !important;
+  font-size: 14px !important;
+}
+
+.data-table .ant-select-selection-placeholder {
+  line-height: 28px !important;
+  font-size: 14px !important;
 }
 

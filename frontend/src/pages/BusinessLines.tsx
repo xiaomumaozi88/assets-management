@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
+import { Table, Tag } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import { businessLinesService } from '../services/business-lines.service';
 import './BusinessLines.css';
 
@@ -123,6 +125,91 @@ const BusinessLines = () => {
     }
   };
 
+  const columns: ColumnsType<BusinessLine> = useMemo(() => [
+    {
+      title: '序号',
+      key: 'index',
+      width: 80,
+      render: (_: any, __: BusinessLine, index: number) => index + 1,
+    },
+    {
+      title: '名称',
+      dataIndex: 'name',
+      key: 'name',
+      width: 150,
+    },
+    {
+      title: '代码',
+      dataIndex: 'code',
+      key: 'code',
+      width: 120,
+    },
+    {
+      title: '后缀',
+      dataIndex: 'suffix',
+      key: 'suffix',
+      width: 100,
+      render: (suffix: string) => suffix || '-',
+    },
+    {
+      title: '描述',
+      dataIndex: 'description',
+      key: 'description',
+      width: 200,
+      render: (description: string) => description || '-',
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status: boolean, record: BusinessLine) => (
+        <Tag
+          color={status ? 'green' : 'default'}
+          style={{ cursor: 'pointer' }}
+          onClick={() => handleToggleStatus(record)}
+        >
+          {status ? '启用' : '禁用'}
+        </Tag>
+      ),
+    },
+    {
+      title: '排序',
+      dataIndex: 'sort_order',
+      key: 'sort_order',
+      width: 80,
+    },
+    {
+      title: '创建时间',
+      key: 'created_at',
+      width: 180,
+      render: (_: any, record: BusinessLine) => 
+        new Date(record.created_at).toLocaleString('zh-CN'),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 150,
+      fixed: 'right',
+      render: (_: any, record: BusinessLine) => (
+        <div className="action-buttons">
+          <button
+            className="btn btn-small btn-edit"
+            onClick={() => handleOpenModal(record)}
+          >
+            编辑
+          </button>
+          <button
+            className="btn btn-small btn-delete"
+            onClick={() => setDeleteConfirm(record.id)}
+          >
+            删除
+          </button>
+        </div>
+      ),
+    },
+  ], [handleOpenModal, handleToggleStatus, setDeleteConfirm]);
+
   return (
     <div className="business-lines-page">
       <div className="page-header">
@@ -138,71 +225,16 @@ const BusinessLines = () => {
         <div className="loading">加载中...</div>
       ) : (
         <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>序号</th>
-                <th>名称</th>
-                <th>代码</th>
-                <th>后缀</th>
-                <th>描述</th>
-                <th>状态</th>
-                <th>排序</th>
-                <th>创建时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {businessLines.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="empty-state">
-                    暂无数据
-                  </td>
-                </tr>
-              ) : (
-                businessLines.map((item, index) => (
-                  <tr key={item.id}>
-                    <td>{index + 1}</td>
-                    <td>{item.name}</td>
-                    <td>{item.code}</td>
-                    <td>{item.suffix || '-'}</td>
-                    <td className="description-cell">
-                      {item.description || '-'}
-                    </td>
-                    <td>
-                      <span
-                        className={`status-badge ${item.status ? 'active' : 'inactive'}`}
-                        onClick={() => handleToggleStatus(item)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        {item.status ? '启用' : '禁用'}
-                      </span>
-                    </td>
-                    <td>{item.sort_order}</td>
-                    <td>
-                      {new Date(item.created_at).toLocaleString('zh-CN')}
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button
-                          className="btn btn-small btn-edit"
-                          onClick={() => handleOpenModal(item)}
-                        >
-                          编辑
-                        </button>
-                        <button
-                          className="btn btn-small btn-delete"
-                          onClick={() => setDeleteConfirm(item.id)}
-                        >
-                          删除
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <Table
+            columns={columns}
+            dataSource={businessLines}
+            rowKey="id"
+            pagination={false}
+            scroll={{ x: 'max-content' }}
+            locale={{
+              emptyText: '暂无数据'
+            }}
+          />
         </div>
       )}
 

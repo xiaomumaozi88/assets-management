@@ -373,3 +373,8 @@
   box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
 }
 
+/* 字段配置表格展开行样式 */
+.fields-table-container .ant-table-expanded-row-fixed {
+  padding-left: 54px !important; /* 与 ant-table-row-expand-icon-cell 宽度对齐 */
+}
+

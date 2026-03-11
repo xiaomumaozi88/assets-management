@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Select } from 'antd';
+import { useState, useEffect, useMemo } from 'react';
+import { Select, Table, Tag } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import { applicationsService, type Application } from '../services/applications.service';
 import { approvalsService, type Approval } from '../services/approvals.service';
 import { assetTypesService } from '../services/asset-types.service';
@@ -248,6 +249,243 @@ const Applications = () => {
     }
     return fieldMaps[templateId][fieldCode] || fieldCode;
   };
+
+  const handleCancelApplication = async (applicationId: string) => {
+    if (!confirm('确定要撤回该申请吗？撤回后无法恢复。')) {
+      return;
+    }
+
+    try {
+      setError('');
+      await applicationsService.cancel(applicationId);
+      loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || '撤回失败');
+    }
+  };
+
+  const handleOpenApprovalModal = async (approval: Approval) => {
+    setSelectedApproval(approval);
+    // 初始化表单数据为申请者预填的数据
+    setApprovalFormData(approval.application?.application_data || {});
+    setIsApprovalModalOpen(true);
+    
+    // 加载模板字段配置
+    if (approval.application?.asset_template_id) {
+      await loadTemplateFields(approval.application.asset_template_id);
+      // 预加载字段选项
+      const fields = await assetFieldsService.getByTemplate(approval.application.asset_template_id);
+      const fieldsList = Array.isArray(fields) ? fields : [];
+      for (const field of fieldsList) {
+        if (field.field_type === 'select') {
+          await loadFieldOptions(field);
+        }
+      }
+    }
+  };
+
+  // 我的申请的表格列
+  const myApplicationsColumns: ColumnsType<Application> = useMemo(() => [
+    {
+      title: '序号',
+      key: 'index',
+      width: 80,
+      render: (_: any, __: Application, index: number) => index + 1,
+    },
+    {
+      title: '资产类型',
+      key: 'assetType',
+      width: 150,
+      render: (_: any, record: Application) => record.assetType?.name || '-',
+    },
+    {
+      title: '申请数据',
+      key: 'application_data',
+      width: 300,
+      render: (_: any, record: Application) => (
+        <div className="application-data">
+          {Object.entries(record.application_data || {}).map(([key, value]) => {
+            if (key === 'owner_id') {
+              const owner = users.find(u => u.id === value);
+              if (owner) {
+                return (
+                  <div key={key}>
+                    <strong>负责人:</strong> {owner.name}
+                  </div>
+                );
+              }
+              return null;
+            }
+            if (key === 'description') {
+              return (
+                <div key={key}>
+                  <strong>申请说明:</strong> {String(value)}
+                </div>
+              );
+            }
+            const fieldName = getFieldName(record.asset_template_id, key);
+            return (
+              <div key={key}>
+                <strong>{fieldName}:</strong> {String(value)}
+              </div>
+            );
+          })}
+        </div>
+      ),
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status: string) => {
+        const colorMap: Record<string, string> = {
+          approved: 'green',
+          rejected: 'red',
+          cancelled: 'default',
+          pending: 'orange',
+        };
+        const textMap: Record<string, string> = {
+          approved: '已通过',
+          rejected: '已拒绝',
+          cancelled: '已撤回',
+          pending: '待处理',
+        };
+        return <Tag color={colorMap[status] || 'default'}>{textMap[status] || status}</Tag>;
+      },
+    },
+    {
+      title: '处理人',
+      key: 'approver',
+      width: 150,
+      render: (_: any, record: Application) => 
+        record.approvals && record.approvals.length > 0
+          ? record.approvals.map(a => a.approver?.name || '-').join(', ')
+          : '-',
+    },
+    {
+      title: '创建时间',
+      key: 'created_at',
+      width: 180,
+      render: (_: any, record: Application) => 
+        new Date(record.created_at).toLocaleString('zh-CN'),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 100,
+      fixed: 'right',
+      render: (_: any, record: Application) => 
+        record.status === 'pending' ? (
+          <button
+            className="btn btn-small btn-secondary"
+            onClick={() => handleCancelApplication(record.id)}
+          >
+            撤回
+          </button>
+        ) : '-',
+    },
+  ], [users, getFieldName, handleCancelApplication]);
+
+  // 审批列表的表格列
+  const approvalsColumns: ColumnsType<Approval> = useMemo(() => [
+    {
+      title: '序号',
+      key: 'index',
+      width: 80,
+      render: (_: any, __: Approval, index: number) => index + 1,
+    },
+    {
+      title: '申请人',
+      key: 'applicant',
+      width: 150,
+      render: (_: any, record: Approval) => record.application?.applicant?.name || '-',
+    },
+    {
+      title: '资产类型',
+      key: 'assetType',
+      width: 150,
+      render: (_: any, record: Approval) => record.application?.assetType?.name || '-',
+    },
+    {
+      title: '申请数据',
+      key: 'application_data',
+      width: 300,
+      render: (_: any, record: Approval) => (
+        <div className="application-data">
+          {Object.entries(record.application?.application_data || {}).map(([key, value]) => {
+            if (key === 'owner_id') {
+              const owner = users.find(u => u.id === value);
+              if (owner) {
+                return (
+                  <div key={key}>
+                    <strong>负责人:</strong> {owner.name}
+                  </div>
+                );
+              }
+              return null;
+            }
+            if (key === 'description') {
+              return (
+                <div key={key}>
+                  <strong>申请说明:</strong> {String(value)}
+                </div>
+              );
+            }
+            const fieldName = getFieldName(record.application?.asset_template_id, key);
+            return (
+              <div key={key}>
+                <strong>{fieldName}:</strong> {String(value)}
+              </div>
+            );
+          })}
+        </div>
+      ),
+    },
+    {
+      title: '处理状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status: string) => {
+        const colorMap: Record<string, string> = {
+          approved: 'green',
+          rejected: 'red',
+          pending: 'orange',
+        };
+        const textMap: Record<string, string> = {
+          approved: '已通过',
+          rejected: '已拒绝',
+          pending: '待处理',
+        };
+        return <Tag color={colorMap[status] || 'default'}>{textMap[status] || status}</Tag>;
+      },
+    },
+    {
+      title: '处理时间',
+      key: 'created_at',
+      width: 180,
+      render: (_: any, record: Approval) => 
+        new Date(record.created_at).toLocaleString('zh-CN'),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 150,
+      fixed: 'right',
+      render: (_: any, record: Approval) => 
+        record.status === 'pending' ? (
+          <button
+            className="btn btn-small btn-primary"
+            onClick={() => handleOpenApprovalModal(record)}
+          >
+            处理
+          </button>
+        ) : (
+          <span>{record.comments || '-'}</span>
+        ),
+    },
+  ], [users, getFieldName, handleOpenApprovalModal]);
 
   const loadTemplates = async (assetTypeId: string) => {
     try {
@@ -532,40 +770,6 @@ const Applications = () => {
     }
   };
 
-  const handleOpenApprovalModal = async (approval: Approval) => {
-    setSelectedApproval(approval);
-    // 初始化表单数据为申请者预填的数据
-    setApprovalFormData(approval.application?.application_data || {});
-    setIsApprovalModalOpen(true);
-    
-    // 加载模板字段配置
-    if (approval.application?.asset_template_id) {
-      await loadTemplateFields(approval.application.asset_template_id);
-      // 预加载字段选项
-      const fields = await assetFieldsService.getByTemplate(approval.application.asset_template_id);
-      const fieldsList = Array.isArray(fields) ? fields : [];
-      for (const field of fieldsList) {
-        if (field.field_type === 'select') {
-          await loadFieldOptions(field);
-        }
-      }
-    }
-  };
-
-  const handleCancelApplication = async (applicationId: string) => {
-    if (!confirm('确定要撤回该申请吗？撤回后无法恢复。')) {
-      return;
-    }
-
-    try {
-      setError('');
-      await applicationsService.cancel(applicationId);
-      loadData();
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || '撤回失败');
-    }
-  };
-
   const handleApprove = async (approvalId: string, status: 'approved' | 'rejected', comments?: string, applicationData?: Record<string, any>) => {
     if (approvalSubmitLoading) return;
     
@@ -753,184 +957,29 @@ const Applications = () => {
         <div className="loading">加载中...</div>
       ) : (
         <div className="table-container">
-          <table className="data-table">
-            <thead>
               {activeTab === 'my-applications' ? (
-                <tr>
-                  <th>序号</th>
-                  <th>资产类型</th>
-                  <th>申请数据</th>
-                  <th>状态</th>
-                  <th>处理人</th>
-                  <th>创建时间</th>
-                  <th>操作</th>
-                </tr>
-              ) : (
-                <tr>
-                  <th>序号</th>
-                  <th>申请人</th>
-                  <th>资产类型</th>
-                  <th>申请数据</th>
-                  <th>处理状态</th>
-                  <th>处理时间</th>
-                  <th>操作</th>
-                </tr>
-              )}
-            </thead>
-            <tbody>
-              {activeTab === 'my-applications' ? (
-                applications.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="empty-state">
-                      暂无申请
-                    </td>
-                  </tr>
-                ) : (
-                  applications.map((app, index) => (
-                    <tr key={app.id}>
-                      <td>{index + 1}</td>
-                      <td>{app.assetType?.name || '-'}</td>
-                      <td>
-                        <div className="application-data">
-                          {Object.entries(app.application_data || {}).map(([key, value]) => {
-                            // 过滤掉系统字段，不应该显示给用户
-                            if (key === 'owner_id') {
-                              // 将 owner_id 转换为用户名称显示
-                              const owner = users.find(u => u.id === value);
-                              if (owner) {
-                                return (
-                                  <div key={key}>
-                                    <strong>负责人:</strong> {owner.name}
-                                  </div>
-                                );
-                              }
-                              return null; // 如果找不到用户，不显示
-                            }
-                            // description 是特殊字段，直接显示
-                            if (key === 'description') {
-                              return (
-                                <div key={key}>
-                                  <strong>申请说明:</strong> {String(value)}
-                                </div>
-                              );
-                            }
-                            // 其他字段使用字段名称
-                            const fieldName = getFieldName(app.asset_template_id, key);
-                            return (
-                              <div key={key}>
-                                <strong>{fieldName}:</strong> {String(value)}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${
-                          app.status === 'approved' ? 'approved' :
-                          app.status === 'rejected' ? 'rejected' :
-                          app.status === 'cancelled' ? 'cancelled' : 'pending'
-                        }`}>
-                          {app.status === 'approved' ? '已通过' :
-                           app.status === 'rejected' ? '已拒绝' :
-                           app.status === 'cancelled' ? '已撤回' : '待处理'}
-                        </span>
-                      </td>
-                      <td>
-                        {app.approvals && app.approvals.length > 0
-                          ? app.approvals.map(a => a.approver?.name || '-').join(', ')
-                          : '-'}
-                      </td>
-                      <td>{new Date(app.created_at).toLocaleString('zh-CN')}</td>
-                      <td>
-                        {app.status === 'pending' ? (
-                          <button
-                            className="btn btn-small btn-secondary"
-                            onClick={() => handleCancelApplication(app.id)}
-                          >
-                            撤回
-                          </button>
-                        ) : '-'}
-                      </td>
-                    </tr>
-                  ))
-                )
-              ) : (
-                approvals.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="empty-state">
-                      {activeTab === 'pending' ? '暂无待处理' : '暂无已处理'}
-                    </td>
-                  </tr>
-                ) : (
-                  approvals.map((approval, index) => (
-                    <tr key={approval.id}>
-                      <td>{index + 1}</td>
-                      <td>{approval.application?.applicant?.name || '-'}</td>
-                      <td>{approval.application?.assetType?.name || '-'}</td>
-                      <td>
-                        <div className="application-data">
-                          {Object.entries(approval.application?.application_data || {}).map(([key, value]) => {
-                            // 过滤掉系统字段，不应该显示给用户
-                            if (key === 'owner_id') {
-                              // 将 owner_id 转换为用户名称显示
-                              const owner = users.find(u => u.id === value);
-                              if (owner) {
-                                return (
-                                  <div key={key}>
-                                    <strong>负责人:</strong> {owner.name}
-                                  </div>
-                                );
-                              }
-                              return null; // 如果找不到用户，不显示
-                            }
-                            // description 是特殊字段，直接显示
-                            if (key === 'description') {
-                              return (
-                                <div key={key}>
-                                  <strong>申请说明:</strong> {String(value)}
-                                </div>
-                              );
-                            }
-                            // 其他字段使用字段名称
-                            const fieldName = getFieldName(approval.application?.asset_template_id, key);
-                            return (
-                              <div key={key}>
-                                <strong>{fieldName}:</strong> {String(value)}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${
-                          approval.status === 'approved' ? 'approved' :
-                          approval.status === 'rejected' ? 'rejected' : 'pending'
-                        }`}>
-                          {approval.status === 'approved' ? '已通过' :
-                           approval.status === 'rejected' ? '已拒绝' : '待处理'}
-                        </span>
-                      </td>
-                      <td>{new Date(approval.created_at).toLocaleString('zh-CN')}</td>
-                      <td>
-                        {approval.status === 'pending' ? (
-                          <div className="action-buttons">
-                            <button
-                              className="btn btn-small btn-primary"
-                              onClick={() => handleOpenApprovalModal(approval)}
-                            >
-                              处理
-                            </button>
-                          </div>
-                        ) : (
-                          <span>{approval.comments || '-'}</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )
-              )}
-            </tbody>
-          </table>
+            <Table
+              columns={myApplicationsColumns}
+              dataSource={applications}
+              rowKey="id"
+              pagination={false}
+              scroll={{ x: 'max-content' }}
+              locale={{
+                emptyText: '暂无申请'
+              }}
+            />
+          ) : (
+            <Table
+              columns={approvalsColumns}
+              dataSource={approvals}
+              rowKey="id"
+              pagination={false}
+              scroll={{ x: 'max-content' }}
+              locale={{
+                emptyText: activeTab === 'pending' ? '暂无待处理' : '暂无已处理'
+              }}
+            />
+          )}
         </div>
       )}
 

@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import React from 'react';
-import { Select } from 'antd';
+import { Select, Tag, Table } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import { assetTypesService } from '../services/asset-types.service';
 import { assetTemplatesService, type AssetTemplate } from '../services/asset-templates.service';
 import { assetFieldsService, type AssetField } from '../services/asset-fields.service';
 import { assetsService } from '../services/assets.service';
 import { businessLinesService } from '../services/business-lines.service';
+import { assetTagsService, type AssetTag } from '../services/asset-tags.service';
 import api from '../services/api';
 import './Assets.css';
 
@@ -35,6 +37,7 @@ interface Asset {
   cost?: number;
   custom_fields?: Record<string, any>;
   children?: Asset[];
+  tags?: AssetTag[];
   created_at: string;
   updated_at: string;
 }
@@ -72,6 +75,9 @@ const Assets = () => {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [fieldOptionsCache, setFieldOptionsCache] = useState<Record<string, Array<{ value: string; label: string }>>>({});
   const [fieldOptionsLoading, setFieldOptionsLoading] = useState<Record<string, boolean>>({});
+  
+  // TAG 相关状态（简化为字符串数组）
+  const [assetTags, setAssetTags] = useState<string[]>([]);
 
   useEffect(() => {
     loadAssetTypes();
@@ -250,18 +256,40 @@ const Assets = () => {
       const data = await assetsService.getAll({ asset_template_id: templateId });
       const assetsList = Array.isArray(data) ? data : [];
       
+      // 调试：检查返回的数据
+      console.log('加载的资产数据:', assetsList);
+      if (assetsList.length > 0) {
+        console.log('第一个资产的 tags:', assetsList[0].tags);
+      }
+      
       // 构建树形结构
       const assetMap = new Map<string, Asset>();
       const rootAssets: Asset[] = [];
 
-      // 创建资产映射
+      // 创建资产映射（保留 tags 数据）
       assetsList.forEach(asset => {
-        assetMap.set(asset.id, { ...asset, children: [] });
+        // 处理 tags 数据，确保格式正确
+        let tags: AssetTag[] = [];
+        if (asset.tags) {
+          if (Array.isArray(asset.tags)) {
+            tags = asset.tags;
+          }
+        }
+        
+        assetMap.set(asset.id, { 
+          ...asset, 
+          children: [],
+          tags: tags // 确保 tags 数据被保留
+        });
       });
 
-      // 构建树形结构
+      // 构建树形结构（确保子节点的 tags 也被保留）
       assetsList.forEach(asset => {
         const assetWithChildren = assetMap.get(asset.id)!;
+        // 确保 tags 数据被保留
+        if (asset.tags && Array.isArray(asset.tags)) {
+          assetWithChildren.tags = asset.tags;
+        }
         if (asset.parent_id && assetMap.has(asset.parent_id)) {
           const parent = assetMap.get(asset.parent_id)!;
           if (!parent.children) {
@@ -307,7 +335,7 @@ const Assets = () => {
     setExpandedRows(newExpanded);
   };
 
-  const handleOpenAssetModal = (asset?: Asset) => {
+  const handleOpenAssetModal = async (asset?: Asset) => {
     if (asset) {
       setEditingAsset(asset);
       setAssetFormData({
@@ -318,6 +346,20 @@ const Assets = () => {
         cost: asset.cost || '',
         ...asset.custom_fields,
       });
+      
+      // 加载资产的 TAG（简化为字符串数组）
+      try {
+        const tags = await assetTagsService.getByAsset(asset.id);
+        if (Array.isArray(tags)) {
+          // 优先使用 tag_value，如果没有则使用 tag_key
+          setAssetTags(tags.map((t: AssetTag) => t.tag_value || t.tag_key || '').filter(Boolean));
+        } else {
+          setAssetTags([]);
+        }
+      } catch (err) {
+        console.error('加载 TAG 失败:', err);
+        setAssetTags([]);
+      }
     } else {
       setEditingAsset(null);
       const initialData: Record<string, any> = {
@@ -332,6 +374,7 @@ const Assets = () => {
         initialData[field.field_code] = field.default_value || '';
       });
       setAssetFormData(initialData);
+      setAssetTags([]);
     }
     setIsAssetModalOpen(true);
   };
@@ -468,12 +511,45 @@ const Assets = () => {
         custom_fields: customFields,
       };
 
+      let assetId: string;
       if (rowId.startsWith('new-')) {
         // 新建 - owner_id 会在后端自动设置为当前用户ID
-        await assetsService.create(assetData);
+        const newAsset = await assetsService.create(assetData);
+        assetId = (newAsset as any).id || rowId;
       } else {
         // 更新
         await assetsService.update(rowId, assetData);
+        assetId = rowId;
+      }
+      
+      // 保存 TAG（将字符串数组转换为 key-value 格式）
+      const tags = data.tags || [];
+      if (assetId && tags.length >= 0) {
+        try {
+          // 将字符串标签转换为 key-value 格式，tag_key 设为 "标签"，tag_value 为标签文本
+          const tagsToSave = tags
+            .filter((t: string | any) => {
+              if (typeof t === 'string') {
+                return t.trim();
+              }
+              // 兼容旧的 key-value 格式
+              return (t.key && t.key.trim()) || (t.tag_key && t.tag_key.trim());
+            })
+            .map((t: string | any) => {
+              if (typeof t === 'string') {
+                return { key: '标签', value: t.trim() };
+              }
+              // 兼容旧的 key-value 格式
+              return {
+                key: t.key || t.tag_key || '标签',
+                value: t.value || t.tag_value || ''
+              };
+            });
+          await assetTagsService.update(assetId, tagsToSave);
+        } catch (err) {
+          console.error('保存 TAG 失败:', err);
+          // TAG 保存失败不影响主流程
+        }
       }
       
       setEditingRowId(null);
@@ -777,6 +853,228 @@ const Assets = () => {
     return value || '-';
   };
 
+  // 使用 useMemo 生成动态 columns
+  const columns: ColumnsType<Asset> = useMemo(() => {
+    const baseColumns: ColumnsType<Asset> = [
+      {
+        title: '序号',
+        key: 'index',
+        width: 80,
+        fixed: 'left',
+        render: (_: any, __: Asset, index: number) => index + 1,
+      },
+      {
+        title: '名称',
+        dataIndex: 'name',
+        key: 'name',
+        width: 200,
+        fixed: 'left',
+        render: (_: any, record: Asset) => {
+          const isEditing = editingRowId === record.id;
+          const value = rowData[record.id]?.name ?? record.name;
+          
+          if (isEditing) {
+            return (
+              <input
+                type="text"
+                value={value || ''}
+                onChange={(e) => handleCellChange(record.id, 'name', e.target.value)}
+                className="inline-input"
+                placeholder="名称"
+              />
+            );
+          }
+          return value || '-';
+        },
+      },
+    ];
+
+    // 动态字段列
+    const fieldColumns = fields.map((field) => ({
+      title: field.field_name,
+      key: field.field_code,
+      width: 160,
+      render: (_: any, record: Asset) => renderCellInput(record, field, field.field_code),
+    }));
+
+    // 标签列
+    const tagColumn = {
+      title: '标签',
+      key: 'tags',
+      width: 200,
+      render: (_: any, record: Asset) => {
+        const isEditing = editingRowId === record.id;
+        
+        if (isEditing) {
+          const currentTags = rowData[record.id]?.tags || record.tags || [];
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '4px' }}>
+                {currentTags.map((tag: AssetTag | string, tagIndex: number) => {
+                  const tagText = typeof tag === 'string' ? tag : (tag.tag_value || tag.tag_key || '');
+                  return (
+                    <Tag
+                      key={tagIndex}
+                      closable
+                      onClose={() => {
+                        const newTags = currentTags.filter((_: any, i: number) => i !== tagIndex);
+                        setRowData({
+                          ...rowData,
+                          [record.id]: {
+                            ...rowData[record.id],
+                            tags: newTags
+                          }
+                        });
+                      }}
+                    >
+                      {tagText}
+                    </Tag>
+                  );
+                })}
+              </div>
+              <input
+                type="text"
+                placeholder="输入标签后按回车添加"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                    const currentTags = rowData[record.id]?.tags || record.tags || [];
+                    setRowData({
+                      ...rowData,
+                      [record.id]: {
+                        ...rowData[record.id],
+                        tags: [...currentTags, e.currentTarget.value.trim()]
+                      }
+                    });
+                    e.currentTarget.value = '';
+                  }
+                }}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid #d9d9d9',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  width: '100%',
+                  minHeight: '36px'
+                }}
+              />
+            </div>
+          );
+        }
+        
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+            {record.tags && Array.isArray(record.tags) && record.tags.length > 0 ? (
+              record.tags.map((tag: AssetTag) => {
+                const tagText = tag.tag_value || tag.tag_key || '';
+                if (!tagText) return null;
+                return <Tag key={tag.id || tag.tag_key}>{tagText}</Tag>;
+              })
+            ) : (
+              <span style={{ color: '#999', fontSize: '12px' }}>-</span>
+            )}
+          </div>
+        );
+      },
+    };
+
+    // 状态列
+    const statusColumn = {
+      title: '状态',
+      key: 'status',
+      width: 120,
+      render: (_: any, record: Asset) => renderCellInput(record, null, 'status'),
+    };
+
+    // 操作列
+    const actionColumn = {
+      title: '操作',
+      key: 'action',
+      width: 200,
+      fixed: 'right',
+      render: (_: any, record: Asset) => {
+        const isEditing = editingRowId === record.id;
+        
+        if (isEditing) {
+          return (
+            <div className="action-buttons">
+              <button
+                className="btn btn-small btn-primary"
+                onClick={() => handleSaveRow(record.id)}
+              >
+                保存
+              </button>
+              <button
+                className="btn btn-small btn-secondary"
+                onClick={() => handleCancelEdit(record.id)}
+              >
+                取消
+              </button>
+            </div>
+          );
+        }
+        
+        return (
+          <div className="action-buttons">
+            <button
+              className="btn btn-small btn-primary"
+              onClick={() => handleAddNewRow(record.id)}
+              style={{ fontSize: '11px', padding: '2px 6px' }}
+              title="新增子行"
+            >
+              +子
+            </button>
+            <button
+              className="btn btn-small btn-edit"
+              onClick={async () => {
+                setEditingRowId(record.id);
+                if (!rowData[record.id]) {
+                  let tags: string[] = [];
+                  if (record.tags && Array.isArray(record.tags)) {
+                    tags = record.tags.map((t: AssetTag) => t.tag_value || t.tag_key || '').filter(Boolean);
+                  } else {
+                    try {
+                      const tagsData = await assetTagsService.getByAsset(record.id);
+                      if (Array.isArray(tagsData)) {
+                        tags = tagsData.map((t: AssetTag) => t.tag_value || t.tag_key || '').filter(Boolean);
+                      }
+                    } catch (err) {
+                      console.error('加载 TAG 失败:', err);
+                    }
+                  }
+                  
+                  setRowData({
+                    ...rowData,
+                    [record.id]: {
+                      name: record.name,
+                      code: record.code || '',
+                      business_line_id: record.business_line_id || '',
+                      expiry_date: record.expiry_date || '',
+                      cost: record.cost || '',
+                      status: record.status,
+                      parent_id: record.parent_id || '',
+                      tags: tags,
+                      ...record.custom_fields,
+                    },
+                  });
+                }
+              }}
+            >
+              编辑
+            </button>
+            <button
+              className="btn btn-small btn-delete"
+              onClick={() => setDeleteConfirm(record.id)}
+            >
+              删除
+            </button>
+          </div>
+        );
+      },
+    };
+
+    return [...baseColumns, ...fieldColumns, tagColumn, statusColumn, actionColumn];
+  }, [fields, editingRowId, rowData, businessLines, fieldOptionsCache, fieldOptionsLoading, handleCellChange, renderCellInput, handleSaveRow, handleCancelEdit, handleAddNewRow, setRowData, setEditingRowId, setDeleteConfirm, assetTagsService]);
+
   const renderAssetRows = (assetsList: Asset[], level: number = 0): React.ReactElement[] => {
     return assetsList.map((asset, index) => {
       const hasChildren = asset.children && asset.children.length > 0;
@@ -810,6 +1108,88 @@ const Assets = () => {
                 {renderCellInput(asset, field, field.field_code)}
               </td>
             ))}
+            {/* TAG 列 */}
+            <td className="editable-cell">
+              {editingRowId === asset.id ? (
+                // 行内编辑模式：显示 TAG 编辑器
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '4px' }}>
+                    {(rowData[asset.id]?.tags || asset.tags || []).map((tag: AssetTag | string, tagIndex: number) => {
+                      // 处理不同的标签格式
+                      let tagText = '';
+                      if (typeof tag === 'string') {
+                        tagText = tag;
+                      } else {
+                        const tagObj = tag as AssetTag | { tag_key?: string; tag_value?: string; key?: string; value?: string };
+                        // 优先使用 tag_value，如果没有则使用 tag_key
+                        tagText = (tagObj as any).tag_value || (tagObj as any).tag_key || (tagObj as any).value || (tagObj as any).key || '';
+                      }
+                      
+                      return (
+                        <Tag
+                          key={tagIndex}
+                          closable
+                          onClose={() => {
+                            const currentTags = rowData[asset.id]?.tags || asset.tags || [];
+                            const newTags = currentTags.filter((_: any, i: number) => i !== tagIndex);
+                            setRowData({
+                              ...rowData,
+                              [asset.id]: {
+                                ...rowData[asset.id],
+                                tags: newTags
+                              }
+                            });
+                          }}
+                        >
+                          {tagText}
+                        </Tag>
+                      );
+                    })}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="输入标签后按回车添加"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                        const currentTags = rowData[asset.id]?.tags || asset.tags || [];
+                        setRowData({
+                          ...rowData,
+                          [asset.id]: {
+                            ...rowData[asset.id],
+                            tags: [...currentTags, e.currentTarget.value.trim()]
+                          }
+                        });
+                        e.currentTarget.value = '';
+                      }
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      border: '1px solid #d9d9d9',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      width: '100%',
+                      minHeight: '36px'
+                    }}
+                  />
+                </div>
+              ) : (
+                // 只读模式：显示 TAG 标签
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {asset.tags && Array.isArray(asset.tags) && asset.tags.length > 0 ? (
+                    asset.tags.map((tag: AssetTag) => {
+                      // 优先显示 tag_value，如果没有则显示 tag_key
+                      const tagText = tag.tag_value || tag.tag_key || '';
+                      if (!tagText) return null;
+                      return (
+                        <Tag key={tag.id || tag.tag_key}>{tagText}</Tag>
+                      );
+                    })
+                  ) : (
+                    <span style={{ color: '#999', fontSize: '12px' }}>-</span>
+                  )}
+                </div>
+              )}
+            </td>
             <td className="editable-cell">
               {renderCellInput(asset, null, 'status')}
             </td>
@@ -841,9 +1221,25 @@ const Assets = () => {
                   </button>
                   <button
                     className="btn btn-small btn-edit"
-                    onClick={() => {
+                    onClick={async () => {
                       setEditingRowId(asset.id);
                       if (!rowData[asset.id]) {
+                      // 加载资产的 TAG（简化为字符串数组）
+                      let tags: string[] = [];
+                      if (asset.tags && Array.isArray(asset.tags)) {
+                        tags = asset.tags.map((t: AssetTag) => t.tag_value || t.tag_key || '').filter(Boolean);
+                      } else {
+                        // 如果没有 tags，尝试从 API 加载
+                        try {
+                          const tagsData = await assetTagsService.getByAsset(asset.id);
+                          if (Array.isArray(tagsData)) {
+                            tags = tagsData.map((t: AssetTag) => t.tag_value || t.tag_key || '').filter(Boolean);
+                          }
+                        } catch (err) {
+                          console.error('加载 TAG 失败:', err);
+                        }
+                      }
+                        
                         setRowData({
                           ...rowData,
                           [asset.id]: {
@@ -854,6 +1250,7 @@ const Assets = () => {
                             cost: asset.cost || '',
                             status: asset.status,
                             parent_id: asset.parent_id || '',
+                            tags: tags,
                             ...asset.custom_fields,
                           },
                         });
@@ -882,6 +1279,7 @@ const Assets = () => {
     setIsAssetModalOpen(false);
     setEditingAsset(null);
     setAssetFormData({});
+    setAssetTags([]);
   };
 
   const handleAssetSubmit = async (e: React.FormEvent) => {
@@ -916,10 +1314,27 @@ const Assets = () => {
         custom_fields: customFields,
       };
 
+      let assetId: string;
       if (editingAsset) {
         await assetsService.update(editingAsset.id, assetData);
+        assetId = editingAsset.id;
       } else {
-        await assetsService.create(assetData);
+        const newAsset = await assetsService.create(assetData);
+        assetId = (newAsset as any).id;
+      }
+      
+      // 保存 TAG（将字符串数组转换为 key-value 格式）
+      if (assetId && assetTags.length >= 0) {
+        try {
+          // 将字符串标签转换为 key-value 格式
+          const tagsToSave = assetTags
+            .filter((t: string) => typeof t === 'string' && t.trim())
+            .map((t: string) => ({ key: '标签', value: t.trim() }));
+          await assetTagsService.update(assetId, tagsToSave);
+        } catch (err) {
+          console.error('保存 TAG 失败:', err);
+          // TAG 保存失败不影响主流程，只记录错误
+        }
       }
       
       handleCloseAssetModal();
@@ -1205,32 +1620,32 @@ const Assets = () => {
           )}
           
           <div className="table-container">
-            <table className="data-table">
-            <thead>
-              <tr>
-                <th>序号</th>
-                <th>名称</th>
-                {fields.map(field => (
-                  <th key={field.id || field.field_code}>{field.field_name}</th>
-                ))}
-                <th>状态</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assets.length === 0 ? (
-                <tr>
-                  <td colSpan={fields.length + 3} className="empty-state">
-                    暂无数据，点击"新增行"创建第一条记录
-                  </td>
-                </tr>
-              ) : (
-                <>
-                  {renderAssetRows(assets, 0)}
-                </>
-              )}
-            </tbody>
-          </table>
+            <Table
+              columns={columns}
+              dataSource={assets}
+              rowKey="id"
+              pagination={false}
+              scroll={{ x: 'max-content' }}
+              expandable={{
+                defaultExpandAllRows: false,
+                expandedRowKeys: Array.from(expandedRows),
+                onExpand: (expanded, record) => {
+                  if (expanded) {
+                    setExpandedRows(new Set([...expandedRows, record.id]));
+                  } else {
+                    const newExpanded = new Set(expandedRows);
+                    newExpanded.delete(record.id);
+                    setExpandedRows(newExpanded);
+                  }
+                },
+              }}
+              rowClassName={(record) => {
+                return editingRowId === record.id ? 'editing-row' : '';
+              }}
+              locale={{
+                emptyText: '暂无数据，点击"新增行"创建第一条记录'
+              }}
+            />
         </div>
         </>
       )}
@@ -1313,6 +1728,46 @@ const Assets = () => {
                   {renderFieldInput(field)}
                 </div>
               ))}
+
+              {/* TAG 编辑器 */}
+              <div className="form-group" style={{ borderTop: '2px solid #e8e8e8', paddingTop: '16px', marginTop: '16px' }}>
+                <label style={{ fontSize: '14px', fontWeight: 600, color: '#333', marginBottom: '8px' }}>标签 (TAG)</label>
+                <div style={{ border: '1px solid #d9d9d9', borderRadius: '4px', padding: '12px', backgroundColor: '#fafafa' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                    {assetTags.map((tag, index) => (
+                      <Tag
+                        key={index}
+                        closable
+                        onClose={() => {
+                          setAssetTags(assetTags.filter((_, i) => i !== index));
+                        }}
+                      >
+                        {tag}
+                      </Tag>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="输入标签后按回车添加"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                        setAssetTags([...assetTags, e.currentTarget.value.trim()]);
+                        e.currentTarget.value = '';
+                      }
+                    }}
+                    style={{
+                      padding: '6px 8px',
+                      border: '1px solid #d9d9d9',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      width: '100%'
+                    }}
+                  />
+                </div>
+                <small style={{ color: '#999', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                  输入标签文本后按回车键添加，点击标签上的 × 可删除
+                </small>
+              </div>
 
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={handleCloseAssetModal}>
