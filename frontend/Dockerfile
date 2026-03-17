@@ -7,7 +7,9 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-# 构建时传入 API 地址与 base 路径（云效可在这里注入）
+# 构建时传入 API 地址与 base 路径。线上构建必须传 VITE_API_URL，否则前端会请求 localhost:3001
+# 后端地址为 http://8.137.120.220:3001，接口前缀为 /api，故 VITE_API_URL=http://8.137.120.220:3001/api
+# 云效示例: docker build --build-arg VITE_API_URL=http://8.137.120.220:3001/api -t frontend .
 ARG VITE_BASE_PATH=/assets-management/
 ARG VITE_API_URL=
 ENV VITE_BASE_PATH=$VITE_BASE_PATH
