@@ -23,7 +23,7 @@ DB_PASSWORD="${DB_PASSWORD:-}"
 DB_DATABASE="${DB_DATABASE:-postgres}"
 JWT_SECRET="${JWT_SECRET:-your-production-secret-change-me}"
 JWT_EXPIRES_IN="${JWT_EXPIRES_IN:-7d}"
-# 前端页面的访问地址，用于 CORS（改成你的公网 IP 或域名）
+# 前端页面的访问地址，用于 CORS（后端据此放行跨域）。云效变量填: http://8.137.120.220
 CORS_ORIGIN="${CORS_ORIGIN:-http://8.137.120.220}"
 
 CONTAINER_BACKEND="assets-backend"

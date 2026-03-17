@@ -6,59 +6,53 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
-  // 启用CORS
-  const allowedOrigins = process.env.CORS_ORIGIN 
-    ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  // 启用CORS：CORS_ORIGIN 为逗号分隔，如 http://8.137.120.220,http://8.137.120.220:80
+  const allowedOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(Boolean)
     : ['http://localhost:5173', 'http://localhost:3001', 'http://127.0.0.1:5173'];
-  
+
+  // 标准化 origin（去掉默认端口，便于比较）
+  const normalizeOrigin = (urlStr: string): string => {
+    try {
+      const u = new URL(urlStr);
+      if ((u.protocol === 'http:' && u.port === '80') || (u.protocol === 'https:' && u.port === '443')) {
+        u.port = '';
+      }
+      return u.origin;
+    } catch {
+      return urlStr;
+    }
+  };
+
   console.log('CORS Configuration:', {
     allowedOrigins,
     nodeEnv: process.env.NODE_ENV,
     corsOriginEnv: process.env.CORS_ORIGIN,
   });
-  
+
   app.enableCors({
     origin: (origin, callback) => {
-      // 允许没有 origin 的请求（如移动应用或 Postman）
+      // 允许没有 origin 的请求（如 Postman、同源）
       if (!origin) {
-        console.log('CORS: Allowing request without origin');
         return callback(null, true);
       }
-      
-      console.log(`CORS: Checking origin: ${origin}`);
-      
-      // 检查是否完全匹配
-      if (allowedOrigins.includes(origin)) {
-        console.log(`CORS: Origin ${origin} is allowed (exact match)`);
+
+      const originNorm = normalizeOrigin(origin);
+      const allowedSet = new Set(allowedOrigins.map(normalizeOrigin));
+
+      if (allowedSet.has(originNorm)) {
         return callback(null, true);
       }
-      
-      // 检查是否是开发环境
+      // 开发环境放行
       if (process.env.NODE_ENV === 'development') {
-        console.log(`CORS: Allowing origin ${origin} (development mode)`);
         return callback(null, true);
       }
-      
-      // 检查是否是以允许的域名开头（支持子路径）
-      const originMatch = allowedOrigins.some(allowed => {
-        try {
-          const allowedUrl = new URL(allowed);
-          const originUrl = new URL(origin);
-          const match = allowedUrl.origin === originUrl.origin;
-          if (match) {
-            console.log(`CORS: Origin ${origin} is allowed (domain match with ${allowed})`);
-          }
-          return match;
-        } catch (e) {
-          return false;
-        }
-      });
-      
-      if (originMatch) {
+      // 再检查一次原始字符串（兼容带/不带默认端口）
+      if (allowedOrigins.some(allowed => normalizeOrigin(allowed) === originNorm)) {
         return callback(null, true);
       }
-      
-      console.error(`CORS: Origin ${origin} is not allowed. Allowed origins:`, allowedOrigins);
+
+      console.error(`CORS: Origin ${origin} (normalized: ${originNorm}) not allowed. Allowed:`, allowedOrigins);
       callback(new Error(`Not allowed by CORS: ${origin}`));
     },
     credentials: true,
