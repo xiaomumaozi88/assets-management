@@ -1,7 +1,7 @@
 # 从仓库根目录构建后端（云效流水线上下文为仓库根时使用）
-# 使用国内镜像源，避免云效构建时拉取 Docker Hub 超时
+# 使用国内镜像源加速（DaoCloud 从云效拉取很慢）
 # 构建阶段
-FROM docker.m.daocloud.io/library/node:20-alpine AS builder
+FROM docker.1ms.run/library/node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ COPY backend/ .
 RUN npm run build
 
 # 运行阶段
-FROM docker.m.daocloud.io/library/node:20-alpine AS runner
+FROM docker.1ms.run/library/node:20-alpine AS runner
 
 WORKDIR /app
 
