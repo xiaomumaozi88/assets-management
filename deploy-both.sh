@@ -72,3 +72,8 @@ docker run -d \
 echo ">>> 部署完成"
 echo "    后端 API: http://<ECS公网IP>:3001"
 echo "    前端页面: http://<ECS公网IP>/assets-management/"
+echo ""
+echo "若浏览器报 CORS 或 OPTIONS 503，请在 ECS 上检查："
+echo "  docker ps                    # 确认 assets-backend 在运行"
+echo "  docker exec assets-backend env | grep CORS_ORIGIN   # 确认变量已传入"
+echo "  docker logs assets-backend --tail 30   # 看启动与 CORS 日志"

@@ -32,33 +32,24 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      // 允许没有 origin 的请求（如 Postman、同源）
       if (!origin) {
         return callback(null, true);
       }
-
       const originNorm = normalizeOrigin(origin);
       const allowedSet = new Set(allowedOrigins.map(normalizeOrigin));
-
-      if (allowedSet.has(originNorm)) {
+      if (allowedSet.has(originNorm) || process.env.NODE_ENV === 'development') {
         return callback(null, true);
       }
-      // 开发环境放行
-      if (process.env.NODE_ENV === 'development') {
-        return callback(null, true);
-      }
-      // 再检查一次原始字符串（兼容带/不带默认端口）
-      if (allowedOrigins.some(allowed => normalizeOrigin(allowed) === originNorm)) {
-        return callback(null, true);
-      }
-
-      console.error(`CORS: Origin ${origin} (normalized: ${originNorm}) not allowed. Allowed:`, allowedOrigins);
-      callback(new Error(`Not allowed by CORS: ${origin}`));
+      console.warn(`CORS: Origin ${origin} not in allowed list:`, allowedOrigins);
+      // 使用 callback(null, false) 避免返回 5xx，浏览器会收到 403 且无 CORS 头
+      callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     exposedHeaders: ['Authorization'],
+    optionsSuccessStatus: 200, // 预检 OPTIONS 返回 200，避免部分环境返回 204/503
+    preflightContinue: false,
   });
   
   // 全局异常过滤器
