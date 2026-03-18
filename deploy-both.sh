@@ -23,8 +23,9 @@ DB_PASSWORD="${DB_PASSWORD:-}"
 DB_DATABASE="${DB_DATABASE:-postgres}"
 JWT_SECRET="${JWT_SECRET:-your-production-secret-change-me}"
 JWT_EXPIRES_IN="${JWT_EXPIRES_IN:-7d}"
-# 前端页面的访问地址，用于 CORS（后端据此放行跨域）。云效变量填: http://8.137.120.220
+# 前端页面的访问地址，用于 CORS。云效变量填: http://8.137.120.220。填 * 或设 CORS_ALLOW_ALL=1 则放行任意来源（仅调试）
 CORS_ORIGIN="${CORS_ORIGIN:-http://8.137.120.220}"
+CORS_ALLOW_ALL="${CORS_ALLOW_ALL:-}"
 
 CONTAINER_BACKEND="assets-backend"
 CONTAINER_FRONTEND="assets-frontend"
@@ -52,6 +53,7 @@ docker run -d \
   -e JWT_SECRET="$JWT_SECRET" \
   -e JWT_EXPIRES_IN="$JWT_EXPIRES_IN" \
   -e CORS_ORIGIN="$CORS_ORIGIN" \
+  -e CORS_ALLOW_ALL="$CORS_ALLOW_ALL" \
   "$BACKEND_IMAGE"
 
 # ---------- 前端 ----------
